@@ -93,6 +93,9 @@
   .flag { display: inline-block; margin-left: 6px; font-size: 11px; font-weight: 600; color: #f2b544; white-space: nowrap; }
   tr.stale { background: rgba(242,181,68,.06); }
   td.status { white-space: nowrap; }
+  td.action { text-align: right; white-space: nowrap; }
+  .plink { display: inline-block; padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 600; text-decoration: none; color: #cbb189; border: 1px solid rgba(176,141,87,.45); background: rgba(176,141,87,.10); }
+  .plink:hover { background: rgba(176,141,87,.20); color: #e4cfa4; }
 
   section.book { margin-top: 32px; }
   .book-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
@@ -219,7 +222,7 @@
       <thead>
         <tr>
           <th>Logged</th><th>Company / contact</th><th>Need</th><th>Source</th><th>Status</th>
-          <th class="num">Days</th><th class="num">Fees</th><th class="num">Total incl GST</th>
+          <th class="num">Days</th><th class="num">Fees</th><th class="num">Total incl GST</th><th></th>
         </tr>
       </thead>
       <tbody>

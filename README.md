@@ -76,6 +76,27 @@ untouched).
 
 Open it in any spreadsheet, or keep it under version control.
 
+## Proposal PDF (branded as Keel)
+
+Every engagement in the book has a **PDF ↓** link that generates a one-page
+proposal and saves it into `exports/`:
+
+- **Hull-green** header band with the **Keel** wordmark
+- A **brass** rule as the waterline, and brass rules through the fee table
+- **Monospaced (Courier) figures** so the money column aligns to the cent
+- A clean **Scope & fees** table: day rate, days, pass-through + handling,
+  subtotal, GST, and the GST-inclusive total
+
+Generate one from the command line too (writes a worked example to `exports/`):
+
+```bash
+python3 proposal.py
+```
+
+The PDF is written with the standard PDF fonts and no third-party libraries, so
+export needs no `pip install` either. `exports/keel-sample-proposal.pdf` is a
+committed example; other generated PDFs are git-ignored.
+
 ## Tests
 
 ```bash
@@ -87,7 +108,9 @@ python3 test_engagements.py
 ```
 app.py              # web server + page routing (stdlib http.server)
 engagements.py      # pricing maths + CSV read/write (framework-free, testable)
+proposal.py         # one-page Keel proposal PDF (stdlib, no PDF library)
 templates/index.html# the page: enquiry form, live quote, the book
-test_engagements.py # pricing sanity checks
+test_engagements.py # pricing, capacity, status + proposal checks
 data/engagements.csv# your engagement book
+exports/            # generated proposal PDFs land here
 ```

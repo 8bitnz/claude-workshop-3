@@ -105,6 +105,28 @@ def test_capacity_thresholds():
     assert capacity_status(14.5) == "red"     # past 14
 
 
+def test_proposal_pdf_is_valid_and_branded(tmp_path_factory=None):
+    import os
+    import tempfile
+    from proposal import build_proposal_pdf, proposal_filename
+
+    e = scope_engagement("Acme Robotics", "Jordan", "Rebuild the platform.",
+                         "Referral", days=6, pass_through=1200).as_row()
+    out = os.path.join(tempfile.mkdtemp(), "p.pdf")
+    build_proposal_pdf(e, out)
+    data = open(out, "rb").read()
+
+    assert data.startswith(b"%PDF-1.4")             # valid header
+    assert data.rstrip().endswith(b"%%EOF")         # valid trailer
+    assert b"/Type /Page" in data and b"/BaseFont /Courier" in data
+    # Content stream carries the branding + the right figures (uncompressed).
+    stream = data.split(b"stream\n", 1)[1].decode("cp1252")
+    assert "KEEL" in stream and "0.106 0.243 0.204 rg" in stream   # hull green
+    assert "0.706 0.560 0.337 RG" in stream                        # brass rule
+    assert "$11,100.00" in stream and "$14,283.00" in stream       # fees + total
+    assert proposal_filename(e).startswith("keel-proposal-acme-robotics-")
+
+
 def test_negative_rejected():
     try:
         scope_engagement("X", "Y", "Z", "Src", days=-1, pass_through=0)

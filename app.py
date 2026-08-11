@@ -19,6 +19,7 @@ from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
+from proposal import build_proposal_pdf, proposal_filename
 from engagements import (
     CAPACITY_AMBER_DAYS,
     DAY_RATE,
@@ -57,11 +58,11 @@ def _days_label(value) -> str:
 def render_rows(engagements: list[dict]) -> str:
     if not engagements:
         return (
-            '<tr class="empty"><td colspan="8">No engagements logged yet — '
+            '<tr class="empty"><td colspan="9">No engagements logged yet — '
             "scope your first enquiry above.</td></tr>"
         )
     cells = []
-    for e in engagements:
+    for i, e in enumerate(engagements):
         st = status_of(e)
         badge = f"<span class='badge badge-{html.escape(st)}'>{html.escape(st)}</span>"
         flag, row_cls = "", ""
@@ -80,6 +81,7 @@ def render_rows(engagements: list[dict]) -> str:
             f"<td class='num'>{html.escape(str(e['days']))}</td>"
             f"<td class='num'>{money(e['fees'])}</td>"
             f"<td class='num total'>{money(e['total_inc_gst'])}</td>"
+            f"<td class='action'><a class='plink' href='/proposal?i={i}'>PDF &#8595;</a></td>"
             "</tr>"
         )
     return "\n".join(cells)
@@ -174,8 +176,19 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Location", location)
         self.end_headers()
 
+    def _send_pdf(self, data: bytes, filename: str) -> None:
+        self.send_response(200)
+        self.send_header("Content-Type", "application/pdf")
+        self.send_header("Content-Disposition", f'inline; filename="{filename}"')
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
+        if parsed.path == "/proposal":
+            self._handle_proposal(parse_qs(parsed.query))
+            return
         if parsed.path not in ("/", "/index.html"):
             self.send_error(404, "Not found")
             return
@@ -189,6 +202,20 @@ class Handler(BaseHTTPRequestHandler):
                 f"GST-inclusive total {total}. Saved to data/engagements.csv.</div>"
             )
         self._send_html(render_page(load_engagements(), flash))
+
+    def _handle_proposal(self, params: dict) -> None:
+        engagements = load_engagements()
+        try:
+            i = int(params.get("i", ["-1"])[0])
+        except ValueError:
+            i = -1
+        if not (0 <= i < len(engagements)):
+            self.send_error(404, "No such engagement")
+            return
+        engagement = engagements[i]
+        path = build_proposal_pdf(engagement)   # saves into exports/
+        with open(path, "rb") as fh:
+            self._send_pdf(fh.read(), proposal_filename(engagement))
 
     def do_POST(self) -> None:
         if urlparse(self.path).path != "/add":

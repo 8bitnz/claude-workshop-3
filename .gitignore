@@ -216,3 +216,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Generated proposal PDFs (keep the folder, ignore the outputs)
+exports/*.pdf
+!exports/keel-sample-proposal.pdf
