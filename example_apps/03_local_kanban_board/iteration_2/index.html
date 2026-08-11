@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kanban Board</title>
+<style>
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,sans-serif; background:#eef1f6; color:#1f2733; padding:20px; }
+  h1 { margin:0 0 16px; font-size:1.5rem; }
+  .board { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; max-width:1100px; margin:0 auto; }
+  .col { background:#e2e8f0; border-radius:12px; padding:12px; display:flex; flex-direction:column; min-height:200px; }
+  .col h2 { margin:0 0 10px; font-size:.95rem; text-transform:uppercase; letter-spacing:.5px; color:#475569; display:flex; justify-content:space-between; }
+  .col h2 .n { background:#cbd5e1; border-radius:999px; padding:1px 9px; font-size:.8rem; }
+  .cards { flex:1; display:flex; flex-direction:column; gap:8px; min-height:40px; }
+  .card { background:#fff; border-radius:8px; padding:10px 12px; box-shadow:0 1px 3px rgba(0,0,0,.1); cursor:grab; }
+  .card.dragging { opacity:.4; }
+  .card .title { display:block; margin-bottom:6px; }
+  .card .pills { display:flex; gap:6px; flex-wrap:wrap; }
+  .pill { font-size:.7rem; font-weight:700; padding:2px 8px; border-radius:999px; }
+  .pill.Low { background:#dcfce7; color:#166534; }
+  .pill.Medium { background:#fef9c3; color:#854d0e; }
+  .pill.High { background:#fee2e2; color:#991b1b; }
+  .pill.due { background:#e0e7ff; color:#3730a3; }
+  .pill.due.overdue { background:#fecaca; color:#991b1b; }
+  .cards.over { outline:2px dashed #94a3b8; outline-offset:2px; border-radius:8px; }
+  input.add { width:100%; padding:9px 10px; border:1.5px solid #cbd5e1; border-radius:8px; margin-top:10px; font:inherit; background:#fff; }
+  .backdrop { position:fixed; inset:0; background:rgba(0,0,0,.45); display:none; align-items:center; justify-content:center; padding:16px; }
+  .backdrop.show { display:flex; }
+  .modal { background:#fff; border-radius:12px; padding:22px; width:100%; max-width:420px; }
+  .modal h3 { margin:0 0 14px; }
+  .modal label { font-size:.8rem; font-weight:600; color:#5b6675; display:block; margin:10px 0 4px; }
+  .modal input, .modal select { width:100%; padding:9px 11px; border:1.5px solid #cbd5e1; border-radius:8px; font:inherit; }
+  .modal .actions { display:flex; gap:10px; margin-top:18px; }
+  .modal button { flex:1; border:none; border-radius:8px; padding:10px; font-weight:700; cursor:pointer; }
+  .modal .save { background:#2563eb; color:#fff; }
+  .modal .del { background:#fee2e2; color:#991b1b; }
+  @media (max-width:760px){ .board{ grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<h1>📋 Kanban Board</h1>
+<div class="board" id="board"></div>
+
+<div class="backdrop" id="backdrop">
+  <div class="modal">
+    <h3>Edit card</h3>
+    <label>Title</label>
+    <input id="mTitle">
+    <label>Due date</label>
+    <input id="mDue" type="date">
+    <label>Priority</label>
+    <select id="mPriority"><option>Low</option><option>Medium</option><option>High</option></select>
+    <div class="actions">
+      <button class="del" id="mDelete">Delete</button>
+      <button class="save" id="mSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const KEY = 'kanban.v1';
+const COLUMNS = ['To Do','In Progress','Done'];
+let cards = load();
+
+function load(){ try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch { return []; } }
+function save(){ localStorage.setItem(KEY, JSON.stringify(cards)); }
+const esc = s => (''+s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => Date.now()+''+Math.random().toString(36).slice(2,6);
+
+const board = document.getElementById('board');
+
+function render() {
+  board.innerHTML = COLUMNS.map(col => {
+    const list = cards.filter(c => c.column === col);
+    return `<div class="col">
+      <h2>${col} <span class="n">${list.length}</span></h2>
+      <div class="cards" data-col="${col}">
+        ${list.map(c => cardHtml(c)).join('')}
+      </div>
+      <input class="add" data-col="${col}" placeholder="+ Add card…">
+    </div>`;
+  }).join('');
+  wire();
+}
+
+function cardHtml(c) {
+  const pills = [];
+  if (c.due) {
+    const overdue = c.column !== 'Done' && c.due < new Date().toISOString().slice(0,10);
+    pills.push(`<span class="pill due ${overdue?'overdue':''}">📅 ${fmtDue(c.due)}</span>`);
+  }
+  if (c.priority) pills.push(`<span class="pill ${c.priority}">${c.priority}</span>`);
+  return `<div class="card" draggable="true" data-id="${c.id}">
+    <span class="title">${esc(c.title)}</span>
+    ${pills.length ? `<div class="pills">${pills.join('')}</div>` : ''}
+  </div>`;
+}
+function fmtDue(d){ return new Date(d+'T00:00').toLocaleDateString([], {month:'short', day:'numeric'}); }
+
+function wire() {
+  document.querySelectorAll('input.add').forEach(inp => {
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && inp.value.trim()) {
+        cards.push({ id: uid(), title: inp.value.trim(), column: inp.dataset.col, priority: 'Medium', due: '' });
+        save(); render();
+      }
+    });
+  });
+
+  let dragId = null, dragged = false;
+  document.querySelectorAll('.card').forEach(card => {
+    card.addEventListener('dragstart', () => { dragId = card.dataset.id; dragged = true; card.classList.add('dragging'); });
+    card.addEventListener('dragend', () => { card.classList.remove('dragging'); setTimeout(()=>dragged=false, 0); });
+    card.addEventListener('click', () => { if (!dragged) openEdit(card.dataset.id); });
+  });
+  document.querySelectorAll('.cards').forEach(zone => {
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('over'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('over'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault(); zone.classList.remove('over');
+      const c = cards.find(x => x.id === dragId);
+      if (c) { c.column = zone.dataset.col; save(); render(); }
+    });
+  });
+}
+
+// ---- Edit modal ----
+let editId = null;
+const backdrop = document.getElementById('backdrop');
+function openEdit(id) {
+  const c = cards.find(x => x.id === id); if (!c) return;
+  editId = id;
+  document.getElementById('mTitle').value = c.title;
+  document.getElementById('mDue').value = c.due || '';
+  document.getElementById('mPriority').value = c.priority || 'Medium';
+  backdrop.classList.add('show');
+}
+function closeEdit(){ backdrop.classList.remove('show'); editId = null; }
+document.getElementById('mSave').onclick = () => {
+  const c = cards.find(x => x.id === editId); if (!c) return;
+  c.title = document.getElementById('mTitle').value.trim() || c.title;
+  c.due = document.getElementById('mDue').value;
+  c.priority = document.getElementById('mPriority').value;
+  save(); closeEdit(); render();
+};
+document.getElementById('mDelete').onclick = () => {
+  cards = cards.filter(x => x.id !== editId);
+  save(); closeEdit(); render();
+};
+backdrop.addEventListener('click', e => { if (e.target === backdrop) closeEdit(); });
+
+render();
+</script>
+</body>
+</html>

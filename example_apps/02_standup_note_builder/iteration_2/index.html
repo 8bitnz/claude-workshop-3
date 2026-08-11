@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Standup Note Builder</title>
+<style>
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,sans-serif; background:#f6f7f9; color:#1f2430; padding:20px; }
+  h1 { font-size:1.5rem; margin:0 0 4px; }
+  .sub { color:#6b7280; margin:0 0 20px; }
+  .layout { display:grid; grid-template-columns:1fr 1fr 260px; gap:20px; max-width:1240px; margin:0 auto; }
+  .panel { background:#fff; border-radius:12px; box-shadow:0 2px 10px rgba(0,0,0,.06); padding:18px; }
+  .field { margin-bottom:14px; }
+  label { font-weight:700; font-size:.85rem; display:block; margin-bottom:5px; }
+  label.blockers { color:#dc2626; }
+  textarea { width:100%; min-height:110px; padding:10px; border:1.5px solid #e2e6ee; border-radius:8px; font:inherit; resize:vertical; }
+  .preview { white-space:pre-wrap; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.9rem; line-height:1.5;
+    background:#0f172a; color:#e2e8f0; border-radius:8px; padding:14px; min-height:200px; }
+  .preview .section { font-weight:700; color:#93c5fd; }
+  .preview .blocker { color:#fca5a5; }
+  button { background:#2563eb; color:#fff; border:none; border-radius:8px; padding:11px 16px; font-weight:700; cursor:pointer; margin-top:10px; }
+  button:hover { filter:brightness(1.05); }
+  .saved { color:#16a34a; font-size:.85rem; margin-left:10px; }
+  .sidebar h3 { margin:0 0 10px; font-size:1rem; }
+  details.hist { border:1px solid #e2e6ee; border-radius:8px; margin-bottom:8px; }
+  details.hist summary { cursor:pointer; padding:9px 12px; font-weight:600; font-size:.85rem; list-style:none; }
+  details.hist summary::-webkit-details-marker { display:none; }
+  details.hist .body { padding:0 12px 12px; white-space:pre-wrap; font-family:ui-monospace,monospace; font-size:.8rem; color:#374151; }
+  .hist-empty { color:#9ca3af; font-size:.85rem; }
+  @media (max-width:980px){ .layout{ grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<h1>🗒️ Standup Note Builder</h1>
+<p class="sub">Type bullets (one per line). Copy a clean update for Slack.</p>
+
+<div class="layout">
+  <div class="panel">
+    <div class="field">
+      <label for="yesterday">Yesterday</label>
+      <textarea id="yesterday" placeholder="Shipped the export feature&#10;Reviewed 3 PRs"></textarea>
+    </div>
+    <div class="field">
+      <label for="today">Today</label>
+      <textarea id="today" placeholder="Start on the settings page&#10;Pair with Sam on the API"></textarea>
+    </div>
+    <div class="field">
+      <label class="blockers" for="blockers">Blockers</label>
+      <textarea id="blockers" placeholder="Waiting on design specs"></textarea>
+    </div>
+  </div>
+
+  <div class="panel">
+    <label>Preview</label>
+    <div class="preview" id="preview"></div>
+    <button id="copyBtn">📋 Copy to clipboard</button>
+    <span class="saved" id="saved"></span>
+  </div>
+
+  <div class="panel sidebar">
+    <h3>📚 This week</h3>
+    <div id="history"><div class="hist-empty">Copied standups from the last 7 days show up here.</div></div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const KEY = 'standup.draft';
+const fields = ['yesterday','today','blockers'];
+
+// restore draft
+try {
+  const d = JSON.parse(localStorage.getItem(KEY)) || {};
+  fields.forEach(f => { if (d[f]) $(f).value = d[f]; });
+} catch {}
+
+function bullets(text) {
+  return text.split('\n').map(l => l.trim()).filter(Boolean);
+}
+
+function buildText() {
+  const y = bullets($('yesterday').value);
+  const t = bullets($('today').value);
+  const b = bullets($('blockers').value);
+  let out = '*Yesterday*\n' + (y.length ? y.map(l=>'• '+l).join('\n') : '• —');
+  out += '\n\n*Today*\n' + (t.length ? t.map(l=>'• '+l).join('\n') : '• —');
+  out += '\n\n*Blockers*\n' + (b.length ? b.map(l=>'• '+l).join('\n') : '• None 🎉');
+  return out;
+}
+
+function render() {
+  const y = bullets($('yesterday').value);
+  const t = bullets($('today').value);
+  const b = bullets($('blockers').value);
+  let html = '<span class="section">*Yesterday*</span>\n' + (y.length ? y.map(l=>'• '+esc(l)).join('\n') : '• —');
+  html += '\n\n<span class="section">*Today*</span>\n' + (t.length ? t.map(l=>'• '+esc(l)).join('\n') : '• —');
+  html += '\n\n<span class="section blocker">*Blockers*</span>\n' + (b.length
+    ? '<span class="blocker">' + b.map(l=>'• '+esc(l)).join('\n') + '</span>'
+    : '• None 🎉');
+  $('preview').innerHTML = html;
+  // autosave draft
+  const d = {}; fields.forEach(f => d[f] = $(f).value);
+  localStorage.setItem(KEY, JSON.stringify(d));
+}
+const esc = s => s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+fields.forEach(f => $(f).addEventListener('input', render));
+
+const HKEY = 'standup.history';
+function loadHist(){ try { return JSON.parse(localStorage.getItem(HKEY)) || []; } catch { return []; } }
+function saveHist(h){ localStorage.setItem(HKEY, JSON.stringify(h)); }
+
+function logStandup(text) {
+  const h = loadHist();
+  const today = new Date().toDateString();
+  // Replace an existing entry for today rather than piling up duplicates.
+  const existing = h.findIndex(e => new Date(e.date).toDateString() === today);
+  const entry = { date: Date.now(), text };
+  if (existing !== -1) h[existing] = entry; else h.unshift(entry);
+  saveHist(h);
+  renderHistory();
+}
+
+function renderHistory() {
+  const weekAgo = Date.now() - 7*24*60*60*1000;
+  const h = loadHist().filter(e => e.date >= weekAgo).sort((a,b)=>b.date-a.date);
+  $('history').innerHTML = h.length ? h.map((e,i) => `
+    <details class="hist" ${i===0?'open':''}>
+      <summary>${new Date(e.date).toLocaleDateString([], {weekday:'short', month:'short', day:'numeric'})}</summary>
+      <div class="body">${esc(e.text)}</div>
+    </details>`).join('')
+    : '<div class="hist-empty">Copied standups from the last 7 days show up here.</div>';
+}
+
+$('copyBtn').onclick = async () => {
+  const text = buildText();
+  try { await navigator.clipboard.writeText(text); }
+  catch { const ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); }
+  logStandup(text);
+  $('saved').textContent = 'Copied & saved!'; setTimeout(()=>$('saved').textContent='', 2000);
+};
+
+render();
+renderHistory();
+</script>
+</body>
+</html>
