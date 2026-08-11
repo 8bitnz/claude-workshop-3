@@ -22,14 +22,21 @@ from urllib.parse import parse_qs, urlparse
 from engagements import (
     CAPACITY_AMBER_DAYS,
     DAY_RATE,
+    DEFAULT_STATUS,
     GST_RATE,
     HANDLING_RATE,
     MONTHLY_CAPACITY_DAYS,
+    PENDING_STALE_DAYS,
+    STATUSES,
     capacity_status,
     committed_days,
+    is_stale_pending,
     load_engagements,
+    months_present,
+    pending_age_days,
     save_engagement,
     scope_engagement,
+    status_of,
 )
 
 HOST = os.environ.get("HOST", "127.0.0.1")
@@ -42,21 +49,34 @@ def money(value) -> str:
     return f"${float(value):,.2f}"
 
 
+def _days_label(value) -> str:
+    """Render 8 not 8.0, but keep 8.5."""
+    return f"{float(value):g}"
+
+
 def render_rows(engagements: list[dict]) -> str:
     if not engagements:
         return (
-            '<tr class="empty"><td colspan="7">No engagements logged yet — '
+            '<tr class="empty"><td colspan="8">No engagements logged yet — '
             "scope your first enquiry above.</td></tr>"
         )
     cells = []
     for e in engagements:
+        st = status_of(e)
+        badge = f"<span class='badge badge-{html.escape(st)}'>{html.escape(st)}</span>"
+        flag, row_cls = "", ""
+        if is_stale_pending(e):
+            age = pending_age_days(e)
+            flag = f" <span class='flag' title='Pending more than {PENDING_STALE_DAYS} days'>&#9888; {age}d</span>"
+            row_cls = " class='stale'"
         cells.append(
-            "<tr>"
+            f"<tr{row_cls}>"
             f"<td class='when'>{html.escape(e['logged_at'])}</td>"
             f"<td><strong>{html.escape(e['company'])}</strong><br>"
             f"<span class='muted'>{html.escape(e['contact'])}</span></td>"
             f"<td>{html.escape(e['need'])}</td>"
             f"<td><span class='pill'>{html.escape(e['source'])}</span></td>"
+            f"<td class='status'>{badge}{flag}</td>"
             f"<td class='num'>{html.escape(str(e['days']))}</td>"
             f"<td class='num'>{money(e['fees'])}</td>"
             f"<td class='num total'>{money(e['total_inc_gst'])}</td>"
@@ -65,23 +85,56 @@ def render_rows(engagements: list[dict]) -> str:
     return "\n".join(cells)
 
 
+def render_capacity(engagements: list[dict]) -> str:
+    """One capacity bar per calendar month. Only won days count as committed."""
+    current = datetime.now().strftime("%Y-%m")
+    months = sorted(set(months_present(engagements)) | {current})
+    cards = []
+    for m in months:
+        committed = committed_days(engagements, month=m)  # won only
+        state = capacity_status(committed)
+        remaining = MONTHLY_CAPACITY_DAYS - committed
+        fill = min(committed / MONTHLY_CAPACITY_DAYS * 100, 100) if MONTHLY_CAPACITY_DAYS else 0
+        if state == "red":
+            note = f"Over capacity by {_days_label(committed - MONTHLY_CAPACITY_DAYS)} days"
+        elif state == "amber":
+            note = f"{_days_label(remaining)} days left — nearing capacity"
+        else:
+            note = f"{_days_label(remaining)} days available"
+        label = datetime.strptime(m, "%Y-%m").strftime("%b %Y")
+        current_cls = " cap-current" if m == current else ""
+        amber_left = CAPACITY_AMBER_DAYS / MONTHLY_CAPACITY_DAYS * 100
+        cards.append(
+            f"<div class='cap-card cap-{state}{current_cls}'>"
+            f"<div class='cap-head'><span class='cap-label'>{html.escape(label)}</span>"
+            f"<span class='cap-figure'><b class='cap-committed'>{_days_label(committed)}</b>"
+            f"<span class='cap-of'>/ {MONTHLY_CAPACITY_DAYS} days</span></span></div>"
+            f"<div class='cap-track' role='progressbar' aria-valuenow='{_days_label(committed)}' "
+            f"aria-valuemin='0' aria-valuemax='{MONTHLY_CAPACITY_DAYS}'>"
+            f"<div class='cap-fill' style='width:{fill:.1f}%'></div>"
+            f"<div class='cap-mark' style='left:{amber_left:.2f}%'></div></div>"
+            f"<div class='cap-note'>{html.escape(note)}</div>"
+            "</div>"
+        )
+    return "\n".join(cards)
+
+
 def render_page(engagements: list[dict], flash: str = "") -> str:
     with open(TEMPLATE_PATH, encoding="utf-8") as fh:
         template = fh.read()
     pipeline_inc = sum(float(e["total_inc_gst"]) for e in engagements)
 
-    committed = committed_days(engagements)
-    status = capacity_status(committed)
-    remaining = MONTHLY_CAPACITY_DAYS - committed
-    fill_pct = min(committed / MONTHLY_CAPACITY_DAYS * 100, 100) if MONTHLY_CAPACITY_DAYS else 0
-    days_label = (lambda d: f"{d:g}")  # 8 not 8.0, 8.5 stays 8.5
-    if status == "red":
-        cap_note = f"Over capacity by {days_label(committed - MONTHLY_CAPACITY_DAYS)} days"
-    elif status == "amber":
-        cap_note = f"{days_label(remaining)} days left — nearing capacity"
+    stale = [e for e in engagements if is_stale_pending(e)]
+    if stale:
+        noun = "enquiry" if len(stale) == 1 else "enquiries"
+        alerts = (
+            f'<div class="flash warn">&#9888; {len(stale)} pending {noun} '
+            f"over {PENDING_STALE_DAYS} days old — time to follow up.</div>"
+        )
     else:
-        cap_note = f"{days_label(remaining)} days available"
-    this_month = datetime.now().strftime("%B %Y")
+        alerts = ""
+
+    counts = {s: sum(1 for e in engagements if status_of(e) == s) for s in STATUSES}
 
     tokens = {
         "{{DAY_RATE}}": f"{DAY_RATE:,.0f}",
@@ -90,17 +143,17 @@ def render_page(engagements: list[dict], flash: str = "") -> str:
         "{{HANDLING_RAW}}": str(HANDLING_RATE),
         "{{GST_PCT}}": f"{GST_RATE * 100:.0f}",
         "{{GST_RAW}}": str(GST_RATE),
-        "{{ROWS}}": render_rows(engagements),
-        "{{COUNT}}": str(len(engagements)),
-        "{{PIPELINE}}": money(pipeline_inc),
-        "{{FLASH}}": flash,
-        "{{CAP_COMMITTED}}": days_label(committed),
         "{{CAP_CEILING}}": str(MONTHLY_CAPACITY_DAYS),
         "{{CAP_AMBER}}": str(CAPACITY_AMBER_DAYS),
-        "{{CAP_PCT}}": f"{fill_pct:.1f}",
-        "{{CAP_STATUS}}": status,
-        "{{CAP_NOTE}}": cap_note,
-        "{{CAP_MONTH}}": this_month,
+        "{{ROWS}}": render_rows(engagements),
+        "{{CAPACITY}}": render_capacity(engagements),
+        "{{COUNT}}": str(len(engagements)),
+        "{{PIPELINE}}": money(pipeline_inc),
+        "{{WON}}": str(counts["won"]),
+        "{{PENDING}}": str(counts["pending"]),
+        "{{LOST}}": str(counts["lost"]),
+        "{{FLASH}}": flash,
+        "{{ALERTS}}": alerts,
     }
     for token, value in tokens.items():
         template = template.replace(token, value)
@@ -151,6 +204,9 @@ class Handler(BaseHTTPRequestHandler):
         contact = field("contact")
         need = field("need")
         source = field("source")
+        status = field("status", DEFAULT_STATUS).lower()
+        if status not in STATUSES:
+            status = DEFAULT_STATUS
         if not company:
             self._send_html(render_page(load_engagements(),
                             '<div class="flash error">Company is required.</div>'), 400)
@@ -163,7 +219,8 @@ class Handler(BaseHTTPRequestHandler):
                             '<div class="flash error">Days and costs must be numbers.</div>'), 400)
             return
 
-        engagement = scope_engagement(company, contact, need, source, days, pass_through)
+        engagement = scope_engagement(company, contact, need, source, days, pass_through,
+                                      status=status)
         save_engagement(engagement)
 
         from urllib.parse import urlencode

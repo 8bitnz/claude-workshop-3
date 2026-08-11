@@ -1,12 +1,23 @@
 """Sanity checks for the engagement pricing maths."""
 
+from datetime import datetime, timedelta, timezone
+
 from engagements import (
     CAPACITY_AMBER_DAYS,
     MONTHLY_CAPACITY_DAYS,
+    PENDING_STALE_DAYS,
+    STATUSES,
     capacity_status,
     committed_days,
+    is_stale_pending,
+    months_present,
+    pending_age_days,
     scope_engagement,
 )
+
+
+def _row(logged_at, days, status="won"):
+    return {"logged_at": logged_at, "days": str(days), "status": status}
 
 
 def test_fees_only():
@@ -34,14 +45,54 @@ def test_half_days_and_rounding():
     assert e.total_inc_gst == 3612.91
 
 
-def test_committed_days_sums_current_month_only():
+def test_committed_days_is_per_calendar_month_and_won_only():
     rows = [
-        {"logged_at": "2026-08-03T09:00:00+12:00", "days": "5"},
-        {"logged_at": "2026-08-20T09:00:00+12:00", "days": "2.5"},
-        {"logged_at": "2026-07-28T09:00:00+12:00", "days": "4"},   # prior month, ignored
+        _row("2026-08-03T09:00:00+12:00", 5, "won"),
+        _row("2026-08-20T09:00:00+12:00", 2.5, "won"),
+        _row("2026-08-22T09:00:00+12:00", 3, "pending"),   # not committed
+        _row("2026-08-25T09:00:00+12:00", 4, "lost"),      # not committed
+        _row("2026-07-28T09:00:00+12:00", 4, "won"),       # prior month
     ]
-    assert committed_days(rows, month="2026-08") == 7.5
-    assert committed_days(rows, month="2026-07") == 4.0
+    assert committed_days(rows, month="2026-08") == 7.5       # won only, this month
+    assert committed_days(rows, month="2026-07") == 4.0       # separate month
+    # Widening statuses lets pending count as provisional load.
+    assert committed_days(rows, month="2026-08", statuses=("won", "pending")) == 10.5
+
+
+def test_months_present():
+    rows = [
+        _row("2026-08-03T09:00:00+12:00", 5),
+        _row("2026-09-01T09:00:00+12:00", 2),
+        _row("2026-08-20T09:00:00+12:00", 1),
+    ]
+    assert months_present(rows) == ["2026-08", "2026-09"]
+
+
+def test_default_status_is_pending():
+    e = scope_engagement("Acme", "Jordan", "Advisory", "Referral", days=1)
+    assert e.status == "pending"
+    assert "pending" in STATUSES and "won" in STATUSES and "lost" in STATUSES
+
+
+def test_invalid_status_rejected():
+    try:
+        scope_engagement("Acme", "J", "x", "y", days=1, status="maybe")
+    except ValueError:
+        return
+    raise AssertionError("expected ValueError for bad status")
+
+
+def test_pending_over_seven_days_is_stale():
+    now = datetime(2026, 8, 20, tzinfo=timezone.utc)
+    fresh = {"status": "pending", "logged_at": (now - timedelta(days=5)).isoformat()}
+    stale = {"status": "pending", "logged_at": (now - timedelta(days=8)).isoformat()}
+    won_old = {"status": "won", "logged_at": (now - timedelta(days=30)).isoformat()}
+    assert pending_age_days(fresh, now) == 5
+    assert is_stale_pending(fresh, now) is False           # 5 days, still fresh
+    assert is_stale_pending(stale, now) is True            # 8 days > 7
+    assert pending_age_days(won_old, now) is None          # not pending
+    assert is_stale_pending(won_old, now) is False
+    assert PENDING_STALE_DAYS == 7
 
 
 def test_capacity_thresholds():

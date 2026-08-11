@@ -27,13 +27,27 @@ total (incl)    = subtotal + GST
 A **live quote** on the page recalculates as you type, and the figures are saved
 exactly as shown.
 
-## Capacity
+## Status & follow-ups
 
-A capacity bar tracks billable days committed **this month** against a ceiling of
-**14 days**. It runs green, turns **amber past 11 days**, and **red past 14**
-(over capacity). Committed days are the sum of scoped days across engagements
-logged in the current calendar month. Thresholds live as constants
-(`MONTHLY_CAPACITY_DAYS`, `CAPACITY_AMBER_DAYS`) in `engagements.py`.
+Every engagement is marked **pending**, **won**, or **lost** (new enquiries
+default to pending). The book shows a coloured badge per row and a
+won / pending / lost tally.
+
+Any enquiry left **pending for more than 7 days** is flagged — the row shows a
+`⚠ Nd` age marker and a banner at the top reminds you how many need a follow-up.
+The threshold is `PENDING_STALE_DAYS` in `engagements.py`.
+
+## Capacity — per calendar month
+
+A capacity bar is shown **for each calendar month** that has activity (plus the
+current month), against a ceiling of **14 billable days**. Each bar runs green,
+turns **amber past 11 days**, and **red past 14** (over capacity), with a marker
+at 11 and a note on days remaining or days over.
+
+Only **won** days count toward committed capacity — pending is potential, lost
+is gone. A month is decided by the date an engagement was logged. Thresholds
+live as constants (`MONTHLY_CAPACITY_DAYS`, `CAPACITY_AMBER_DAYS`) in
+`engagements.py`.
 
 ## Run it
 
@@ -51,10 +65,14 @@ To change the port: `PORT=9000 python3 app.py`.
 Every engagement is appended to `data/engagements.csv` with these columns:
 
 ```
-logged_at, company, contact, need, source,
+logged_at, company, contact, need, source, status,
 days, day_rate, fees, pass_through, handling_rate, handling,
 subtotal_ex_gst, gst_rate, gst, total_inc_gst
 ```
+
+Older CSVs written before `status` existed are upgraded in place automatically
+on first run (the column is added with a `pending` default; existing figures are
+untouched).
 
 Open it in any spreadsheet, or keep it under version control.
 

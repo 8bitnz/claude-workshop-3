@@ -60,24 +60,39 @@
   .quote .total .v { font-size: 24px; font-weight: 700; color: var(--accent-2); }
   .quote small { color: var(--muted); }
 
-  /* Capacity bar */
-  .capacity { margin-bottom: 20px; --cap: var(--accent-2); }
-  .capacity.cap-amber { --cap: #f2b544; }
-  .capacity.cap-red { --cap: var(--danger); }
-  .cap-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
-  .cap-head h2 { margin: 0; }
-  .cap-figure { display: flex; align-items: baseline; gap: 8px; }
-  .cap-committed { font-size: 22px; font-weight: 700; color: var(--cap); font-variant-numeric: tabular-nums; }
-  .cap-of { color: var(--muted); font-size: 13px; }
-  .cap-track { position: relative; height: 14px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+  /* Capacity — one bar per calendar month */
+  .capacity-section { margin-bottom: 24px; }
+  .cap-section-head { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .cap-section-head h2 { margin: 0; font-size: 14px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .cap-legend { font-size: 12px; color: var(--muted); }
+  .capacity-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+  .cap-card { --cap: var(--accent-2); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; box-shadow: var(--shadow); }
+  .cap-card.cap-amber { --cap: #f2b544; }
+  .cap-card.cap-red { --cap: var(--danger); }
+  .cap-card.cap-current { border-color: color-mix(in srgb, var(--cap) 55%, var(--line)); }
+  .cap-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+  .cap-label { font-weight: 600; }
+  .cap-figure { display: flex; align-items: baseline; gap: 6px; white-space: nowrap; }
+  .cap-committed { font-size: 20px; font-weight: 700; color: var(--cap); font-variant-numeric: tabular-nums; }
+  .cap-of { color: var(--muted); font-size: 12px; }
+  .cap-track { position: relative; height: 12px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
   .cap-fill { height: 100%; background: var(--cap); border-radius: 999px; transition: width .35s ease, background .35s ease; box-shadow: 0 0 12px -2px var(--cap); }
-  .cap-mark { position: absolute; top: -3px; bottom: -3px; width: 0; border-left: 2px dashed rgba(255,255,255,.35); }
-  .cap-mark span { position: absolute; top: -18px; transform: translateX(-50%); font-size: 11px; color: var(--muted); }
-  .cap-note { margin-top: 10px; font-size: 13px; color: var(--muted); }
-  .capacity.cap-amber .cap-note, .capacity.cap-red .cap-note { color: var(--cap); font-weight: 600; }
+  .cap-mark { position: absolute; top: -2px; bottom: -2px; width: 0; border-left: 2px dashed rgba(255,255,255,.35); }
+  .cap-note { margin-top: 9px; font-size: 12px; color: var(--muted); }
+  .cap-card.cap-amber .cap-note, .cap-card.cap-red .cap-note { color: var(--cap); font-weight: 600; }
 
   .flash { margin: 0 0 18px; padding: 12px 14px; border-radius: 10px; background: rgba(53,208,165,.12); border: 1px solid rgba(53,208,165,.4); color: #baf1df; }
   .flash.error { background: rgba(255,107,107,.12); border-color: rgba(255,107,107,.4); color: #ffc9c9; }
+  .flash.warn { background: rgba(242,181,68,.12); border-color: rgba(242,181,68,.45); color: #f6d99a; }
+
+  /* Status badges + stale flag */
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; text-transform: capitalize; border: 1px solid transparent; }
+  .badge-pending { background: rgba(154,163,178,.15); color: #c3cad6; border-color: rgba(154,163,178,.35); }
+  .badge-won { background: rgba(53,208,165,.15); color: #7fe6c8; border-color: rgba(53,208,165,.4); }
+  .badge-lost { background: rgba(255,107,107,.13); color: #ffb0b0; border-color: rgba(255,107,107,.35); }
+  .flag { display: inline-block; margin-left: 6px; font-size: 11px; font-weight: 600; color: #f2b544; white-space: nowrap; }
+  tr.stale { background: rgba(242,181,68,.06); }
+  td.status { white-space: nowrap; }
 
   section.book { margin-top: 32px; }
   .book-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
@@ -110,23 +125,17 @@
   </header>
 
   {{FLASH}}
+  {{ALERTS}}
 
-  <div class="card capacity cap-{{CAP_STATUS}}">
-    <div class="body">
-      <div class="cap-head">
-        <h2>Capacity — {{CAP_MONTH}}</h2>
-        <div class="cap-figure">
-          <span class="cap-committed">{{CAP_COMMITTED}}</span>
-          <span class="cap-of">of {{CAP_CEILING}} billable days</span>
-        </div>
-      </div>
-      <div class="cap-track" role="progressbar" aria-valuenow="{{CAP_COMMITTED}}" aria-valuemin="0" aria-valuemax="{{CAP_CEILING}}">
-        <div class="cap-fill" style="width: {{CAP_PCT}}%"></div>
-        <div class="cap-mark cap-mark-amber" style="left: calc({{CAP_AMBER}} / {{CAP_CEILING}} * 100%)"><span>{{CAP_AMBER}}</span></div>
-      </div>
-      <div class="cap-note">{{CAP_NOTE}}</div>
+  <section class="capacity-section">
+    <div class="cap-section-head">
+      <h2>Capacity — billable days per month</h2>
+      <span class="cap-legend">won days vs {{CAP_CEILING}}/mo · amber past {{CAP_AMBER}} · red past {{CAP_CEILING}}</span>
     </div>
-  </div>
+    <div class="capacity-grid">
+      {{CAPACITY}}
+    </div>
+  </section>
 
   <div class="grid">
     <div class="card">
@@ -160,16 +169,24 @@
 
           <div class="row2">
             <div>
+              <label for="status">Status</label>
+              <select id="status" name="status">
+                <option value="pending" selected>Pending</option>
+                <option value="won">Won</option>
+                <option value="lost">Lost</option>
+              </select>
+              <div class="hint">won days count toward capacity</div>
+            </div>
+            <div>
               <label for="days">Days scoped</label>
               <input id="days" name="days" type="number" step="0.5" min="0" value="0" inputmode="decimal">
               <div class="hint">x ${{DAY_RATE}}/day</div>
             </div>
-            <div>
-              <label for="pass_through">Pass-through costs ($)</label>
-              <input id="pass_through" name="pass_through" type="number" step="0.01" min="0" value="0" inputmode="decimal">
-              <div class="hint">+ {{HANDLING_PCT}}% handling</div>
-            </div>
           </div>
+
+          <label for="pass_through">Pass-through costs ($)</label>
+          <input id="pass_through" name="pass_through" type="number" step="0.01" min="0" value="0" inputmode="decimal">
+          <div class="hint">+ {{HANDLING_PCT}}% handling</div>
 
           <button type="submit">Log engagement</button>
         </form>
@@ -194,13 +211,14 @@
       <h2 style="text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-size:14px;margin:0;">The book</h2>
       <div class="stats">
         <span><b>{{COUNT}}</b> engagements</span>
+        <span><b>{{WON}}</b> won · <b>{{PENDING}}</b> pending · <b>{{LOST}}</b> lost</span>
         <span>pipeline <b>{{PIPELINE}}</b> incl GST</span>
       </div>
     </div>
     <table>
       <thead>
         <tr>
-          <th>Logged</th><th>Company / contact</th><th>Need</th><th>Source</th>
+          <th>Logged</th><th>Company / contact</th><th>Need</th><th>Source</th><th>Status</th>
           <th class="num">Days</th><th class="num">Fees</th><th class="num">Total incl GST</th>
         </tr>
       </thead>

@@ -20,6 +20,11 @@ GST_RATE = 0.15          # New Zealand GST, 15%
 MONTHLY_CAPACITY_DAYS = 14   # ceiling of billable days in a month
 CAPACITY_AMBER_DAYS = 11     # bar turns amber once committed days pass this
 
+# Enquiry lifecycle. Capacity counts only "won" (firmly committed) days.
+STATUSES = ("pending", "won", "lost")
+DEFAULT_STATUS = "pending"
+PENDING_STALE_DAYS = 7       # a pending enquiry older than this needs chasing
+
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 CSV_PATH = os.path.join(DATA_DIR, "engagements.csv")
 
@@ -30,6 +35,7 @@ FIELDNAMES = [
     "contact",
     "need",
     "source",
+    "status",
     "days",
     "day_rate",
     "fees",
@@ -57,6 +63,7 @@ class Engagement:
     contact: str
     need: str
     source: str
+    status: str
     days: float
     day_rate: float
     fees: float
@@ -80,6 +87,7 @@ def scope_engagement(
     days: float,
     pass_through: float = 0.0,
     *,
+    status: str = DEFAULT_STATUS,
     day_rate: float = DAY_RATE,
     handling_rate: float = HANDLING_RATE,
     gst_rate: float = GST_RATE,
@@ -95,6 +103,9 @@ def scope_engagement(
     pass_through = float(pass_through)
     if days < 0 or pass_through < 0:
         raise ValueError("days and pass-through costs cannot be negative")
+    status = (status or DEFAULT_STATUS).strip().lower()
+    if status not in STATUSES:
+        raise ValueError(f"status must be one of {STATUSES}")
 
     fees = _round2(days * day_rate)
     handling = _round2(pass_through * handling_rate)
@@ -108,6 +119,7 @@ def scope_engagement(
         contact=contact.strip(),
         need=need.strip(),
         source=source.strip(),
+        status=status,
         days=days,
         day_rate=day_rate,
         fees=fees,
@@ -126,6 +138,30 @@ def _ensure_csv() -> None:
     if not os.path.exists(CSV_PATH):
         with open(CSV_PATH, "w", newline="", encoding="utf-8") as fh:
             csv.DictWriter(fh, fieldnames=FIELDNAMES).writeheader()
+        return
+    _migrate_csv()
+
+
+def _migrate_csv() -> None:
+    """Upgrade an older CSV in place so appends stay column-aligned.
+
+    Rewrites the file with the current ``FIELDNAMES`` header, backfilling any
+    newly added columns (e.g. ``status`` defaults to pending). A no-op when the
+    header already matches.
+    """
+    with open(CSV_PATH, newline="", encoding="utf-8") as fh:
+        reader = csv.DictReader(fh)
+        if reader.fieldnames == FIELDNAMES:
+            return
+        rows = list(reader)
+    with open(CSV_PATH, "w", newline="", encoding="utf-8") as fh:
+        writer = csv.DictWriter(fh, fieldnames=FIELDNAMES)
+        writer.writeheader()
+        for row in rows:
+            out = {k: row.get(k, "") for k in FIELDNAMES}
+            if not out.get("status"):
+                out["status"] = DEFAULT_STATUS
+            writer.writerow(out)
 
 
 def save_engagement(engagement: Engagement) -> None:
@@ -141,25 +177,51 @@ def load_engagements() -> list[dict]:
         return []
     with open(CSV_PATH, newline="", encoding="utf-8") as fh:
         rows = list(csv.DictReader(fh))
+    for row in rows:
+        if not row.get("status"):
+            row["status"] = DEFAULT_STATUS
     return list(reversed(rows))
 
 
-def committed_days(engagements: list[dict], month: str | None = None) -> float:
+def status_of(engagement: dict) -> str:
+    return (engagement.get("status") or DEFAULT_STATUS).strip().lower()
+
+
+def month_of(engagement: dict) -> str:
+    """The ``YYYY-MM`` calendar month an engagement was logged in."""
+    return str(engagement.get("logged_at", ""))[:7]
+
+
+def committed_days(
+    engagements: list[dict],
+    month: str | None = None,
+    statuses: tuple[str, ...] = ("won",),
+) -> float:
     """Sum billable days committed within a calendar month.
 
     ``month`` is a ``YYYY-MM`` string; defaults to the current local month.
-    Engagements are matched on the ``YYYY-MM`` prefix of their ``logged_at``.
+    By default only ``won`` engagements count toward committed capacity; pass
+    ``statuses`` to widen (e.g. include ``pending`` as provisional load).
     """
     if month is None:
         month = datetime.now(timezone.utc).astimezone().strftime("%Y-%m")
     total = 0.0
     for e in engagements:
-        if str(e.get("logged_at", ""))[:7] == month:
-            try:
-                total += float(e.get("days") or 0)
-            except (TypeError, ValueError):
-                continue
+        if month_of(e) != month:
+            continue
+        if statuses and status_of(e) not in statuses:
+            continue
+        try:
+            total += float(e.get("days") or 0)
+        except (TypeError, ValueError):
+            continue
     return _round2(total)
+
+
+def months_present(engagements: list[dict]) -> list[str]:
+    """Sorted list of calendar months (YYYY-MM) that have any engagement."""
+    months = {month_of(e) for e in engagements if month_of(e)}
+    return sorted(months)
 
 
 def capacity_status(committed: float) -> str:
@@ -169,3 +231,26 @@ def capacity_status(committed: float) -> str:
     if committed > CAPACITY_AMBER_DAYS:
         return "amber"
     return "ok"
+
+
+def pending_age_days(engagement: dict, now: datetime | None = None) -> int | None:
+    """Whole days an engagement has sat *pending*.
+
+    Returns ``None`` if it is not pending or has no parseable logged date.
+    """
+    if status_of(engagement) != "pending":
+        return None
+    try:
+        logged = datetime.fromisoformat(str(engagement.get("logged_at", "")))
+    except ValueError:
+        return None
+    if logged.tzinfo is None:
+        logged = logged.replace(tzinfo=timezone.utc)
+    now = now or datetime.now(timezone.utc)
+    return max((now - logged).days, 0)
+
+
+def is_stale_pending(engagement: dict, now: datetime | None = None) -> bool:
+    """True when a pending enquiry has gone unanswered for too long."""
+    age = pending_age_days(engagement, now)
+    return age is not None and age > PENDING_STALE_DAYS
