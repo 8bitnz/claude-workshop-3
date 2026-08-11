@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Habit Tracker</title>
+<style>
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,sans-serif; background:#0d1117; color:#c9d1d9; padding:24px; }
+  h1 { margin:0 0 4px; font-size:1.5rem; }
+  .sub { color:#8b949e; margin:0 0 22px; }
+  .add-row { display:flex; gap:8px; max-width:420px; margin-bottom:26px; }
+  .add-row input { flex:1; padding:9px 11px; border-radius:8px; border:1px solid #30363d; background:#0d1117; color:#c9d1d9; font:inherit; }
+  .add-row button { background:#238636; color:#fff; border:none; border-radius:8px; padding:9px 16px; font-weight:700; cursor:pointer; }
+  .habit { background:#161b22; border:1px solid #30363d; border-radius:12px; padding:16px; margin-bottom:16px; }
+  .habit-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; gap:10px; }
+  .habit-head .name { font-weight:700; font-size:1.05rem; }
+  .habit-head .streak { color:#f0883e; font-weight:700; font-size:.9rem; }
+  .habit-head .del { background:none; border:none; color:#8b949e; cursor:pointer; font-size:1rem; }
+  .grid { display:grid; grid-template-rows:repeat(7, 13px); grid-auto-flow:column; grid-auto-columns:13px; gap:3px; overflow-x:auto; padding-bottom:4px; }
+  .cell { width:13px; height:13px; border-radius:3px; background:#21262d; cursor:pointer; transition:background .1s; }
+  .cell.on { background:#39d353; }
+  .cell:hover { outline:1px solid #58a6ff; }
+  .empty { color:#8b949e; }
+</style>
+</head>
+<body>
+<h1>🌱 Habit Tracker</h1>
+<p class="sub">Build streaks. Click a square to mark a day done.</p>
+
+<div class="add-row">
+  <input id="habitName" placeholder="New habit (e.g. Read, Exercise)…" maxlength="40">
+  <button id="addBtn">Add habit</button>
+</div>
+
+<div id="habits"></div>
+
+<script>
+const KEY = 'habits.v1';
+const DAYS = 90;
+const MAX_HABITS = 5;
+let habits = load();
+
+function load(){ try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch { return []; } }
+function save(){ localStorage.setItem(KEY, JSON.stringify(habits)); }
+const esc = s => (''+s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => Date.now()+''+Math.random().toString(36).slice(2,6);
+
+function dayKey(offset) { // offset 0 = today, going back
+  const d = new Date(); d.setDate(d.getDate() - offset);
+  return d.toISOString().slice(0,10);
+}
+function lastNDays(n) { // oldest first
+  const arr = []; for (let i = n-1; i >= 0; i--) arr.push(dayKey(i)); return arr;
+}
+
+function streak(days) {
+  // consecutive filled days ending today or yesterday
+  let s = 0;
+  for (let i = 0; i < DAYS; i++) {
+    const k = dayKey(i);
+    if (days[k]) s++;
+    else if (i === 0) continue; // today not done yet is OK, keep counting from yesterday
+    else break;
+  }
+  return s;
+}
+
+document.getElementById('addBtn').onclick = addHabit;
+document.getElementById('habitName').addEventListener('keydown', e => { if (e.key==='Enter') addHabit(); });
+function addHabit() {
+  const name = document.getElementById('habitName').value.trim();
+  if (!name) return;
+  if (habits.length >= MAX_HABITS) { alert('Up to 5 habits.'); return; }
+  habits.push({ id: uid(), name, days: {} });
+  document.getElementById('habitName').value = '';
+  save(); render();
+}
+function removeHabit(id){ habits = habits.filter(h=>h.id!==id); save(); render(); }
+function toggle(id, key) {
+  const h = habits.find(x=>x.id===id); if(!h) return;
+  if (h.days[key]) delete h.days[key]; else h.days[key] = 1;
+  save(); render();
+}
+
+function render() {
+  const cont = document.getElementById('habits');
+  if (!habits.length) { cont.innerHTML = '<p class="empty">No habits yet. Add one above to start tracking.</p>'; return; }
+  cont.innerHTML = habits.map(h => {
+    const cells = lastNDays(DAYS).map(k =>
+      `<div class="cell ${h.days[k]?'on':''}" data-id="${h.id}" data-key="${k}" title="${k}"></div>`).join('');
+    return `<div class="habit">
+      <div class="habit-head">
+        <span class="name">${esc(h.name)}</span>
+        <span style="display:flex; align-items:center; gap:12px;">
+          <span class="streak">🔥 ${streak(h.days)} day streak</span>
+          <button class="del" onclick="removeHabit('${h.id}')" title="Remove">✕</button>
+        </span>
+      </div>
+      <div class="grid">${cells}</div>
+    </div>`;
+  }).join('');
+  cont.querySelectorAll('.cell').forEach(c =>
+    c.addEventListener('click', () => toggle(c.dataset.id, c.dataset.key)));
+}
+render();
+</script>
+</body>
+</html>

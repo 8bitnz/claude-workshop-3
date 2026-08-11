@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meeting Cost Calculator</title>
+<style>
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,sans-serif; background:#0f172a; color:#e2e8f0;
+    min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; }
+  .app { background:#1e293b; border-radius:18px; padding:32px; width:100%; max-width:520px; box-shadow:0 20px 60px rgba(0,0,0,.4); }
+  h1 { margin:0 0 6px; font-size:1.5rem; }
+  .sub { color:#94a3b8; margin:0 0 24px; font-size:.95rem; }
+  label { display:block; font-size:.8rem; color:#94a3b8; margin:14px 0 4px; font-weight:600; }
+  input, select { width:100%; padding:11px; border-radius:10px; border:1.5px solid #334155; background:#0f172a; color:#e2e8f0; font-size:1rem; }
+  .counter { text-align:center; margin:28px 0 8px; }
+  .money { font-size:3.4rem; font-weight:800; font-variant-numeric:tabular-nums; transition:color .5s; }
+  .time { color:#94a3b8; font-size:1.1rem; margin-top:4px; font-variant-numeric:tabular-nums; }
+  .btns { display:flex; gap:10px; margin-top:20px; }
+  button { flex:1; padding:13px; border:none; border-radius:10px; font-size:1rem; font-weight:700; cursor:pointer; }
+  .start { background:#22c55e; color:#052e16; }
+  .pause { background:#f59e0b; color:#3a2400; }
+  .reset { background:#334155; color:#e2e8f0; }
+  button:hover { filter:brightness(1.08); }
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>💸 Meeting Cost Calculator</h1>
+  <p class="sub">See exactly how much that meeting is costing — live.</p>
+
+  <label for="attendees">Number of attendees</label>
+  <input id="attendees" type="number" min="1" value="6">
+
+  <label for="role">Role preset (sets hourly rate)</label>
+  <select id="role">
+    <option value="40">Support / Ops — $40/hr</option>
+    <option value="65" selected>Individual Contributor — $65/hr</option>
+    <option value="90">Senior / Specialist — $90/hr</option>
+    <option value="130">Manager — $130/hr</option>
+    <option value="200">Director / Exec — $200/hr</option>
+    <option value="custom">Custom…</option>
+  </select>
+
+  <label for="rate">Average hourly salary ($/hr)</label>
+  <input id="rate" type="number" min="0" value="65">
+
+  <div class="counter">
+    <div class="money" id="money">$0.00</div>
+    <div class="time" id="time">00:00</div>
+  </div>
+
+  <div class="btns">
+    <button class="start" id="startBtn">Start</button>
+    <button class="pause" id="pauseBtn">Pause</button>
+    <button class="reset" id="resetBtn">Reset</button>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let startTime = null, elapsedMs = 0, timer = null, running = false;
+
+$('role').addEventListener('change', e => {
+  if (e.target.value !== 'custom') $('rate').value = e.target.value;
+});
+$('rate').addEventListener('input', () => { $('role').value = 'custom'; });
+
+function ratePerSecond() {
+  const n = parseFloat($('attendees').value) || 0;
+  const rate = parseFloat($('rate').value) || 0;
+  return (n * rate) / 3600;
+}
+
+function fmtTime(ms) {
+  const s = Math.floor(ms/1000);
+  const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = s%60;
+  const mm = String(m).padStart(2,'0'), ss = String(sec).padStart(2,'0');
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+
+function currentCost() {
+  const total = elapsedMs + (running ? Date.now() - startTime : 0);
+  return ratePerSecond() * (total/1000);
+}
+
+function tick() {
+  const total = elapsedMs + (running ? Date.now() - startTime : 0);
+  const cost = ratePerSecond() * (total/1000);
+  $('money').textContent = '$' + cost.toFixed(2);
+  $('time').textContent = fmtTime(total);
+  // green -> red as it climbs past $500
+  const t = Math.min(cost/500, 1);
+  const hue = 140 - t*140;      // 140 green to 0 red
+  $('money').style.color = `hsl(${hue}, 80%, 60%)`;
+}
+
+function start() {
+  if (running) return;
+  running = true; startTime = Date.now();
+  timer = setInterval(tick, 200);
+}
+function pause() {
+  if (!running) return;
+  elapsedMs += Date.now() - startTime;
+  running = false; clearInterval(timer); tick();
+}
+function reset() {
+  running = false; clearInterval(timer); elapsedMs = 0; startTime = null; tick();
+}
+
+$('startBtn').onclick = start;
+$('pauseBtn').onclick = pause;
+$('resetBtn').onclick = reset;
+tick();
+</script>
+</body>
+</html>
