@@ -60,6 +60,22 @@
   .quote .total .v { font-size: 24px; font-weight: 700; color: var(--accent-2); }
   .quote small { color: var(--muted); }
 
+  /* Capacity bar */
+  .capacity { margin-bottom: 20px; --cap: var(--accent-2); }
+  .capacity.cap-amber { --cap: #f2b544; }
+  .capacity.cap-red { --cap: var(--danger); }
+  .cap-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+  .cap-head h2 { margin: 0; }
+  .cap-figure { display: flex; align-items: baseline; gap: 8px; }
+  .cap-committed { font-size: 22px; font-weight: 700; color: var(--cap); font-variant-numeric: tabular-nums; }
+  .cap-of { color: var(--muted); font-size: 13px; }
+  .cap-track { position: relative; height: 14px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+  .cap-fill { height: 100%; background: var(--cap); border-radius: 999px; transition: width .35s ease, background .35s ease; box-shadow: 0 0 12px -2px var(--cap); }
+  .cap-mark { position: absolute; top: -3px; bottom: -3px; width: 0; border-left: 2px dashed rgba(255,255,255,.35); }
+  .cap-mark span { position: absolute; top: -18px; transform: translateX(-50%); font-size: 11px; color: var(--muted); }
+  .cap-note { margin-top: 10px; font-size: 13px; color: var(--muted); }
+  .capacity.cap-amber .cap-note, .capacity.cap-red .cap-note { color: var(--cap); font-weight: 600; }
+
   .flash { margin: 0 0 18px; padding: 12px 14px; border-radius: 10px; background: rgba(53,208,165,.12); border: 1px solid rgba(53,208,165,.4); color: #baf1df; }
   .flash.error { background: rgba(255,107,107,.12); border-color: rgba(255,107,107,.4); color: #ffc9c9; }
 
@@ -94,6 +110,23 @@
   </header>
 
   {{FLASH}}
+
+  <div class="card capacity cap-{{CAP_STATUS}}">
+    <div class="body">
+      <div class="cap-head">
+        <h2>Capacity — {{CAP_MONTH}}</h2>
+        <div class="cap-figure">
+          <span class="cap-committed">{{CAP_COMMITTED}}</span>
+          <span class="cap-of">of {{CAP_CEILING}} billable days</span>
+        </div>
+      </div>
+      <div class="cap-track" role="progressbar" aria-valuenow="{{CAP_COMMITTED}}" aria-valuemin="0" aria-valuemax="{{CAP_CEILING}}">
+        <div class="cap-fill" style="width: {{CAP_PCT}}%"></div>
+        <div class="cap-mark cap-mark-amber" style="left: calc({{CAP_AMBER}} / {{CAP_CEILING}} * 100%)"><span>{{CAP_AMBER}}</span></div>
+      </div>
+      <div class="cap-note">{{CAP_NOTE}}</div>
+    </div>
+  </div>
 
   <div class="grid">
     <div class="card">

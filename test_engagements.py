@@ -1,6 +1,12 @@
 """Sanity checks for the engagement pricing maths."""
 
-from engagements import scope_engagement
+from engagements import (
+    CAPACITY_AMBER_DAYS,
+    MONTHLY_CAPACITY_DAYS,
+    capacity_status,
+    committed_days,
+    scope_engagement,
+)
 
 
 def test_fees_only():
@@ -26,6 +32,26 @@ def test_half_days_and_rounding():
     assert e.handling == 33.33               # 333.33 x 0.10
     assert e.subtotal_ex_gst == 3141.66
     assert e.total_inc_gst == 3612.91
+
+
+def test_committed_days_sums_current_month_only():
+    rows = [
+        {"logged_at": "2026-08-03T09:00:00+12:00", "days": "5"},
+        {"logged_at": "2026-08-20T09:00:00+12:00", "days": "2.5"},
+        {"logged_at": "2026-07-28T09:00:00+12:00", "days": "4"},   # prior month, ignored
+    ]
+    assert committed_days(rows, month="2026-08") == 7.5
+    assert committed_days(rows, month="2026-07") == 4.0
+
+
+def test_capacity_thresholds():
+    assert MONTHLY_CAPACITY_DAYS == 14
+    assert CAPACITY_AMBER_DAYS == 11
+    assert capacity_status(8) == "ok"
+    assert capacity_status(11) == "ok"        # at threshold, not past it
+    assert capacity_status(11.5) == "amber"   # past 11
+    assert capacity_status(14) == "amber"     # at ceiling, not over
+    assert capacity_status(14.5) == "red"     # past 14
 
 
 def test_negative_rejected():

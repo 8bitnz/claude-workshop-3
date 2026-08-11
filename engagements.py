@@ -17,6 +17,9 @@ DAY_RATE = 1850.0        # NZD per day, GST-exclusive
 HANDLING_RATE = 0.10     # 10% handling added on top of pass-through costs
 GST_RATE = 0.15          # New Zealand GST, 15%
 
+MONTHLY_CAPACITY_DAYS = 14   # ceiling of billable days in a month
+CAPACITY_AMBER_DAYS = 11     # bar turns amber once committed days pass this
+
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 CSV_PATH = os.path.join(DATA_DIR, "engagements.csv")
 
@@ -139,3 +142,30 @@ def load_engagements() -> list[dict]:
     with open(CSV_PATH, newline="", encoding="utf-8") as fh:
         rows = list(csv.DictReader(fh))
     return list(reversed(rows))
+
+
+def committed_days(engagements: list[dict], month: str | None = None) -> float:
+    """Sum billable days committed within a calendar month.
+
+    ``month`` is a ``YYYY-MM`` string; defaults to the current local month.
+    Engagements are matched on the ``YYYY-MM`` prefix of their ``logged_at``.
+    """
+    if month is None:
+        month = datetime.now(timezone.utc).astimezone().strftime("%Y-%m")
+    total = 0.0
+    for e in engagements:
+        if str(e.get("logged_at", ""))[:7] == month:
+            try:
+                total += float(e.get("days") or 0)
+            except (TypeError, ValueError):
+                continue
+    return _round2(total)
+
+
+def capacity_status(committed: float) -> str:
+    """Traffic-light state for the capacity bar: 'ok', 'amber' or 'red'."""
+    if committed > MONTHLY_CAPACITY_DAYS:
+        return "red"
+    if committed > CAPACITY_AMBER_DAYS:
+        return "amber"
+    return "ok"

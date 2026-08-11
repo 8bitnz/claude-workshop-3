@@ -15,13 +15,18 @@ from __future__ import annotations
 import html
 import os
 import webbrowser
+from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 from engagements import (
+    CAPACITY_AMBER_DAYS,
     DAY_RATE,
     GST_RATE,
     HANDLING_RATE,
+    MONTHLY_CAPACITY_DAYS,
+    capacity_status,
+    committed_days,
     load_engagements,
     save_engagement,
     scope_engagement,
@@ -64,6 +69,20 @@ def render_page(engagements: list[dict], flash: str = "") -> str:
     with open(TEMPLATE_PATH, encoding="utf-8") as fh:
         template = fh.read()
     pipeline_inc = sum(float(e["total_inc_gst"]) for e in engagements)
+
+    committed = committed_days(engagements)
+    status = capacity_status(committed)
+    remaining = MONTHLY_CAPACITY_DAYS - committed
+    fill_pct = min(committed / MONTHLY_CAPACITY_DAYS * 100, 100) if MONTHLY_CAPACITY_DAYS else 0
+    days_label = (lambda d: f"{d:g}")  # 8 not 8.0, 8.5 stays 8.5
+    if status == "red":
+        cap_note = f"Over capacity by {days_label(committed - MONTHLY_CAPACITY_DAYS)} days"
+    elif status == "amber":
+        cap_note = f"{days_label(remaining)} days left — nearing capacity"
+    else:
+        cap_note = f"{days_label(remaining)} days available"
+    this_month = datetime.now().strftime("%B %Y")
+
     tokens = {
         "{{DAY_RATE}}": f"{DAY_RATE:,.0f}",
         "{{DAY_RATE_RAW}}": str(DAY_RATE),
@@ -75,6 +94,13 @@ def render_page(engagements: list[dict], flash: str = "") -> str:
         "{{COUNT}}": str(len(engagements)),
         "{{PIPELINE}}": money(pipeline_inc),
         "{{FLASH}}": flash,
+        "{{CAP_COMMITTED}}": days_label(committed),
+        "{{CAP_CEILING}}": str(MONTHLY_CAPACITY_DAYS),
+        "{{CAP_AMBER}}": str(CAPACITY_AMBER_DAYS),
+        "{{CAP_PCT}}": f"{fill_pct:.1f}",
+        "{{CAP_STATUS}}": status,
+        "{{CAP_NOTE}}": cap_note,
+        "{{CAP_MONTH}}": this_month,
     }
     for token, value in tokens.items():
         template = template.replace(token, value)

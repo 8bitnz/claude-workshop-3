@@ -27,6 +27,14 @@ total (incl)    = subtotal + GST
 A **live quote** on the page recalculates as you type, and the figures are saved
 exactly as shown.
 
+## Capacity
+
+A capacity bar tracks billable days committed **this month** against a ceiling of
+**14 days**. It runs green, turns **amber past 11 days**, and **red past 14**
+(over capacity). Committed days are the sum of scoped days across engagements
+logged in the current calendar month. Thresholds live as constants
+(`MONTHLY_CAPACITY_DAYS`, `CAPACITY_AMBER_DAYS`) in `engagements.py`.
+
 ## Run it
 
 ```bash
