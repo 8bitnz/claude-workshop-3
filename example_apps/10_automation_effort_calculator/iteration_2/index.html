@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Automation Effort Calculator</title>
+<style>
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,sans-serif; background:#0f1729; color:#e2e8f0; padding:24px;
+    display:flex; justify-content:center; }
+  .app { width:100%; max-width:640px; }
+  h1 { margin:0 0 4px; font-size:1.5rem; }
+  .sub { color:#94a3b8; margin:0 0 24px; }
+  .control { background:#1b2438; border-radius:12px; padding:16px 18px; margin-bottom:14px; }
+  .control label { display:flex; justify-content:space-between; font-weight:600; margin-bottom:10px; }
+  .control label .val { color:#38bdf8; }
+  input[type=range] { width:100%; accent-color:#38bdf8; }
+  select { width:100%; padding:9px; border-radius:8px; border:1px solid #334155; background:#0f1729; color:#e2e8f0; font:inherit; }
+  .result { background:linear-gradient(135deg,#1e293b,#243049); border-radius:14px; padding:22px; margin-top:8px; }
+  .result .big { font-size:2rem; font-weight:800; color:#38bdf8; }
+  .result .headline { font-size:1.05rem; margin:6px 0 16px; }
+  .math { background:#0f1729; border-radius:10px; padding:14px; font-family:ui-monospace,monospace; font-size:.85rem; color:#a5b4c8; line-height:1.7; }
+  .math .hl { color:#38bdf8; }
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>🤖 Automation Effort Calculator</h1>
+  <p class="sub">Is that repetitive task actually worth automating? Move the sliders.</p>
+
+  <div class="control">
+    <label>Time per occurrence <span class="val"><span id="timeVal">15</span> min</span></label>
+    <input type="range" id="time" min="1" max="120" value="15">
+  </div>
+
+  <div class="control">
+    <label>How annoying / hard is it? <span class="val" id="painVal">3 — moderate</span></label>
+    <input type="range" id="pain" min="1" max="5" value="3">
+  </div>
+
+  <div class="control">
+    <label>How often do you do it?</label>
+    <select id="freq">
+      <option value="21.7">Daily (workdays)</option>
+      <option value="13" selected>A few times a week</option>
+      <option value="4.33">Weekly</option>
+      <option value="1">Monthly</option>
+    </select>
+  </div>
+
+  <div class="control">
+    <label>Hourly rate ($) <span class="val">$<span id="rateVal">60</span>/hr</span></label>
+    <input type="range" id="rate" min="10" max="300" step="5" value="60">
+  </div>
+
+  <div class="control">
+    <label>How many people do this task? <span class="val" id="peopleVal">1</span></label>
+    <input type="range" id="people" min="1" max="50" value="1">
+  </div>
+
+  <div class="result">
+    <div class="headline">Across the team, you spend</div>
+    <div class="big" id="perMonth">—</div>
+    <div class="headline">= <span id="costMonth" style="color:#4ade80; font-weight:700;">—</span> per month.</div>
+    <div class="headline" style="margin-top:14px;">Worth building an automation that takes up to</div>
+    <div class="big" id="budget">—</div>
+    <div class="headline">— i.e. worth automating up to <span id="dollarBudget" style="color:#4ade80; font-weight:700;">—</span>.</div>
+    <div class="math" id="math"></div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const PAIN_LABELS = { 1:'1 — trivial', 2:'2 — minor', 3:'3 — moderate', 4:'4 — painful', 5:'5 — soul-crushing' };
+const PAYBACK_MONTHS = 3;
+
+function fmtHours(h) {
+  if (h < 1) return (h * 60).toFixed(0) + ' min';
+  return h.toFixed(1) + ' hr';
+}
+
+const money = n => '$' + n.toLocaleString(undefined, {maximumFractionDigits:0});
+
+function compute() {
+  const minutes = +$('time').value;
+  const pain = +$('pain').value;
+  const perMonth = +$('freq').value;   // occurrences per month
+  const rate = +$('rate').value;
+  const people = +$('people').value;
+
+  $('timeVal').textContent = minutes;
+  $('painVal').textContent = PAIN_LABELS[pain];
+  $('rateVal').textContent = rate;
+  $('peopleVal').textContent = people;
+
+  const minsPerMonth = minutes * perMonth * people;
+  const hoursPerMonth = minsPerMonth / 60;
+  const costPerMonth = hoursPerMonth * rate;
+
+  // Break-even effort: hours saved over the payback window.
+  const baseBudget = hoursPerMonth * PAYBACK_MONTHS;
+  const painFactor = 1 + (pain - 1) * 0.15;   // 1.0 .. 1.6
+  const budget = baseBudget * painFactor;
+  const dollarBudget = budget * rate;
+
+  $('perMonth').textContent = fmtHours(hoursPerMonth) + ' / month';
+  $('costMonth').textContent = money(costPerMonth);
+  $('budget').textContent = fmtHours(budget);
+  $('dollarBudget').textContent = money(dollarBudget);
+
+  $('math').innerHTML =
+    `time/month = ${minutes} min × <span class="hl">${perMonth}</span> occ × <span class="hl">${people}</span> ppl = ${minsPerMonth.toFixed(0)} min (${hoursPerMonth.toFixed(1)} hr)\n` +
+    `cost/month = ${hoursPerMonth.toFixed(1)} hr × ${money(rate)}/hr = <span class="hl">${money(costPerMonth)}</span>\n` +
+    `break-even (${PAYBACK_MONTHS} mo) = ${hoursPerMonth.toFixed(1)} hr × ${PAYBACK_MONTHS} = ${baseBudget.toFixed(1)} hr\n` +
+    `pain multiplier = ${painFactor.toFixed(2)}× (pain ${pain})\n` +
+    `budget = ${baseBudget.toFixed(1)} × ${painFactor.toFixed(2)} = <span class="hl">${fmtHours(budget)}</span> = <span class="hl">${money(dollarBudget)}</span>`;
+}
+
+['time','pain','freq','rate','people'].forEach(id => $(id).addEventListener('input', compute));
+compute();
+</script>
+</body>
+</html>
