@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Boulder Dash</title>
+<style>
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { margin:0; height:100%; background:#0b0f0a; color:#e8f0d8; font-family:"Segoe UI",system-ui,sans-serif; overflow:hidden; }
+  .stage { height:100dvh; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; }
+  h1 { margin:0; font-weight:800; letter-spacing:3px; text-transform:uppercase; font-size:clamp(1.3rem,4.5vw,2rem); color:#c9e265; }
+  .hud { font-family:ui-monospace,monospace; letter-spacing:1px; font-size:1rem; display:flex; gap:18px; }
+  .hud b { color:#ffd23f; }
+  .board { position:relative; }
+  canvas { background:#000; border:2px solid #2a3a1c; border-radius:4px; display:block; max-width:94vw; max-height:66vh; image-rendering:pixelated; }
+  .overlay { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+             gap:12px; background:rgba(5,10,3,.82); border-radius:4px; text-align:center; padding:20px; }
+  .overlay.hidden { display:none; }
+  .overlay h2 { margin:0; font-size:1.6rem; color:#c9e265; }
+  .overlay p { margin:0; opacity:.85; max-width:360px; line-height:1.5; }
+  button { background:transparent; color:#c9e265; border:2px solid #c9e265; border-radius:8px; padding:11px 24px; font-size:1rem;
+           font-weight:800; letter-spacing:2px; text-transform:uppercase; cursor:pointer; }
+  button:hover { background:#c9e265; color:#0b0f0a; }
+  .hint { font-size:.8rem; opacity:.6; }
+  .dpad { display:none; }
+  @media (pointer:coarse){
+    .dpad { display:grid; grid-template-columns:repeat(3,60px); grid-template-rows:repeat(3,60px); gap:6px; margin-top:6px; }
+    .dpad button { padding:0; font-size:1.4rem; border-width:1.5px; }
+    .dpad .sp { visibility:hidden; }
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <h1>Boulder Dash</h1>
+  <div class="hud">
+    <span>💎 <b id="gems">0</b> / <span id="need">0</span></span>
+    <span>SCORE <b id="score">0</b></span>
+    <span>LIVES <b id="lives">3</b></span>
+  </div>
+  <div class="board">
+    <canvas id="game" width="640" height="384"></canvas>
+    <div class="overlay" id="overlay">
+      <h2 id="ovTitle">Boulder Dash</h2>
+      <p id="ovText">Dig through the dirt, collect enough diamonds to open the exit (it flashes), and don't get crushed by falling boulders. You can push boulders sideways.</p>
+      <button id="playBtn">Play</button>
+      <div class="hint">Arrow keys to move</div>
+    </div>
+  </div>
+  <div class="dpad" id="dpad">
+    <span class="sp"></span><button data-d="up">▲</button><span class="sp"></span>
+    <button data-d="left">◀</button><span class="sp"></span><button data-d="right">▶</button>
+    <span class="sp"></span><button data-d="down">▼</button><span class="sp"></span>
+  </div>
+</div>
+
+<script>
+// Tile codes
+const EMPTY=0, DIRT=1, WALL=2, BOULDER=3, GEM=4, PLAYER=5, EXIT=6;
+const TILE = 32;
+
+// Level: W steel, # dirt, . empty, r boulder, d diamond, P player, E exit
+const LEVEL = [
+  "WWWWWWWWWWWWWWWWWWWW",
+  "W#####r####d###r###W",
+  "W##P#####dd###r##d#W",
+  "W####r##r#####d####W",
+  "W#r####d####r####d#W",
+  "W##d##r###r#####r##W",
+  "W####d###d###d##r##W",
+  "W#r####r####r####d#W",
+  "W##d#####d##r####d#W",
+  "W###r##r####d##r###W",
+  "W#d####d###r####dE#W",
+  "WWWWWWWWWWWWWWWWWWWW",
+];
+const COLS = LEVEL[0].length, ROWS = LEVEL.length;
+
+const cv = document.getElementById('game'), ctx = cv.getContext('2d');
+cv.width = COLS * TILE; cv.height = ROWS * TILE;
+const $ = id => document.getElementById(id);
+
+let grid, falling, px, py, gems, need, score, lives, running, exitOpen, dead, tickAcc, last;
+const GEM_TARGET_RATIO = 0.6;
+
+function parseLevel() {
+  grid = []; falling = [];
+  let totalGems = 0;
+  for (let y = 0; y < ROWS; y++) {
+    const row = [], frow = [];
+    for (let x = 0; x < COLS; x++) {
+      const c = LEVEL[y][x];
+      let t = EMPTY;
+      if (c === 'W') t = WALL;
+      else if (c === '#') t = DIRT;
+      else if (c === 'r') t = BOULDER;
+      else if (c === 'd') { t = GEM; totalGems++; }
+      else if (c === 'P') { t = PLAYER; px = x; py = y; }
+      else if (c === 'E') t = EXIT;
+      row.push(t); frow.push(false);
+    }
+    grid.push(row); falling.push(frow);
+  }
+  need = Math.ceil(totalGems * GEM_TARGET_RATIO);
+}
+
+function resetLevel() {
+  parseLevel();
+  gems = 0; exitOpen = false; dead = false;
+  $('need').textContent = need; updateHud();
+}
+function fullReset() { score = 0; lives = 3; resetLevel(); }
+function updateHud() { $('gems').textContent = gems; $('score').textContent = score; $('lives').textContent = lives; }
+
+const keys = {};
+document.addEventListener('keydown', e => {
+  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) { e.preventDefault(); keys[e.code] = true; }
+});
+document.addEventListener('keyup', e => keys[e.code] = false);
+$('dpad').addEventListener('mousedown', dpadPress);
+$('dpad').addEventListener('touchstart', dpadPress, {passive:false});
+function dpadPress(e){ const d=e.target.dataset.d; if(!d)return; e.preventDefault();
+  const map={up:'ArrowUp',down:'ArrowDown',left:'ArrowLeft',right:'ArrowRight'}; keys[map[d]]=true; setTimeout(()=>keys[map[d]]=false,120); }
+
+function tryMovePlayer() {
+  let dx = 0, dy = 0;
+  if (keys['ArrowLeft']) dx = -1; else if (keys['ArrowRight']) dx = 1;
+  else if (keys['ArrowUp']) dy = -1; else if (keys['ArrowDown']) dy = 1;
+  if (dx === 0 && dy === 0) return;
+
+  const nx = px + dx, ny = py + dy;
+  const t = grid[ny][nx];
+  if (t === WALL) return;
+  if (t === BOULDER) {
+    // push horizontally only
+    if (dy === 0) {
+      const bx = nx + dx;
+      if (grid[ny][bx] === EMPTY) { grid[ny][bx] = BOULDER; } else return;
+    } else return;
+  }
+  if (t === EXIT && !exitOpen) return;
+  if (t === EXIT && exitOpen) { grid[py][px] = EMPTY; win(); return; }
+  if (t === GEM) { gems++; score += 25; updateHud(); if (gems >= need) openExit(); }
+  // move
+  grid[py][px] = EMPTY;
+  grid[ny][nx] = PLAYER;
+  px = nx; py = ny;
+}
+
+function openExit() {
+  exitOpen = true;
+}
+
+function physics() {
+  // scan bottom-up so stacks fall correctly
+  const nextFalling = Array.from({length: ROWS}, () => new Array(COLS).fill(false));
+  for (let y = ROWS - 2; y >= 1; y--) {
+    for (let x = 1; x < COLS - 1; x++) {
+      const t = grid[y][x];
+      if (t !== BOULDER && t !== GEM) continue;
+      const below = grid[y+1][x];
+      if (below === EMPTY) {
+        // fall straight down
+        if (grid[y+1][x] === PLAYER) {} // handled below via crush check
+        grid[y+1][x] = t; grid[y][x] = EMPTY; nextFalling[y+1][x] = true;
+      } else if ((below === BOULDER || below === GEM || below === WALL)) {
+        // roll off rounded surfaces
+        if (grid[y][x-1] === EMPTY && grid[y+1][x-1] === EMPTY) {
+          grid[y][x-1] = t; grid[y][x] = EMPTY; nextFalling[y][x-1] = true;
+        } else if (grid[y][x+1] === EMPTY && grid[y+1][x+1] === EMPTY) {
+          grid[y][x+1] = t; grid[y][x] = EMPTY; nextFalling[y][x+1] = true;
+        }
+      }
+    }
+  }
+  // crush check: a tile that was falling and is now directly above the player
+  for (let x = 1; x < COLS - 1; x++) {
+    for (let y = 1; y < ROWS - 1; y++) {
+      if ((grid[y][x] === BOULDER || grid[y][x] === GEM) && nextFalling[y][x]) {
+        if (py === y + 1 && px === x) killPlayer();
+      }
+    }
+  }
+  falling = nextFalling;
+}
+
+function killPlayer() {
+  if (dead) return;
+  dead = true; running = false;
+  lives--; updateHud();
+  setTimeout(() => {
+    if (lives <= 0) return gameOver();
+    resetLevel(); running = true; last = performance.now(); requestAnimationFrame(loop);
+  }, 700);
+}
+
+function win() {
+  running = false;
+  score += 250 + lives * 100; updateHud();
+  $('ovTitle').textContent = 'You escaped! 🎉';
+  $('ovText').innerHTML = `Score <b style="color:#ffd23f">${score}</b>. Ready for another run?`;
+  $('playBtn').textContent = 'Play Again';
+  $('overlay').classList.remove('hidden');
+}
+function gameOver() {
+  running = false;
+  $('ovTitle').textContent = 'Game Over';
+  $('ovText').innerHTML = `You were crushed. Final score <b style="color:#ffd23f">${score}</b>.`;
+  $('playBtn').textContent = 'Try Again';
+  $('overlay').classList.remove('hidden');
+}
+
+function draw() {
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, cv.width, cv.height);
+  for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
+    const t = grid[y][x], gx = x*TILE, gy = y*TILE;
+    if (t === WALL) { ctx.fillStyle = '#5a6b7a'; ctx.fillRect(gx, gy, TILE, TILE);
+      ctx.fillStyle = '#48566180'; ctx.fillRect(gx+2, gy+2, TILE-4, TILE-4); }
+    else if (t === DIRT) { ctx.fillStyle = '#6b4a2b'; ctx.fillRect(gx, gy, TILE, TILE);
+      ctx.fillStyle = '#7d5731'; for (let i=0;i<3;i++) ctx.fillRect(gx+5+i*9, gy+6+((i%2)*10), 3, 3); }
+    else if (t === BOULDER) { ctx.fillStyle = '#b8b0a0'; circle(gx+TILE/2, gy+TILE/2, TILE/2-3);
+      ctx.fillStyle = '#dcd6c8'; circle(gx+TILE/2-4, gy+TILE/2-4, 4); }
+    else if (t === GEM) { drawGem(gx, gy); }
+    else if (t === PLAYER) { drawPlayer(gx, gy); }
+    else if (t === EXIT) {
+      if (exitOpen) { ctx.fillStyle = (Math.floor(performance.now()/150)%2) ? '#ffd23f' : '#c9e265'; }
+      else ctx.fillStyle = '#2a3a1c';
+      ctx.fillRect(gx+3, gy+3, TILE-6, TILE-6);
+      ctx.fillStyle = '#000'; ctx.fillRect(gx+9, gy+9, TILE-18, TILE-12);
+    }
+  }
+}
+function circle(x, y, r){ ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill(); }
+function drawGem(gx, gy){
+  const cx = gx+TILE/2, cy = gy+TILE/2, s = TILE/2-4;
+  ctx.fillStyle = (Math.floor(performance.now()/120)%2) ? '#4fd1ff' : '#7de2ff';
+  ctx.beginPath(); ctx.moveTo(cx, cy-s); ctx.lineTo(cx+s, cy); ctx.lineTo(cx, cy+s); ctx.lineTo(cx-s, cy); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#ffffff90'; ctx.beginPath(); ctx.moveTo(cx, cy-s); ctx.lineTo(cx+s*0.5, cy-s*0.1); ctx.lineTo(cx, cy); ctx.closePath(); ctx.fill();
+}
+function drawPlayer(gx, gy){
+  ctx.fillStyle = dead ? '#e05a5a' : '#ffd23f';
+  ctx.fillRect(gx+7, gy+6, TILE-14, TILE-12);
+  ctx.fillStyle = '#000'; ctx.fillRect(gx+11, gy+11, 3, 3); ctx.fillRect(gx+TILE-14, gy+11, 3, 3);
+}
+
+function loop(now) {
+  if (!running) return;
+  tickAcc += now - last; last = now;
+  const STEP = 130;
+  while (tickAcc >= STEP) {
+    tickAcc -= STEP;
+    tryMovePlayer();
+    physics();
+  }
+  draw();
+  requestAnimationFrame(loop);
+}
+
+function start() {
+  $('overlay').classList.add('hidden');
+  fullReset();
+  running = true; dead = false; tickAcc = 0; last = performance.now();
+  requestAnimationFrame(loop);
+}
+$('playBtn').addEventListener('click', start);
+
+// idle preview
+parseLevel(); $('need').textContent = need; draw();
+</script>
+</body>
+</html>
