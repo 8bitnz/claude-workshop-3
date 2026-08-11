@@ -1,0 +1,2 @@
+logged_at,company,contact,need,source,status,days,day_rate,fees,pass_through,handling_rate,handling,subtotal_ex_gst,gst_rate,gst,total_inc_gst
+2026-08-11T14:23:00+12:00,ACme,Jim,asdf,asdf,pending,10.0,1850.0,18500.0,1500.0,0.1,150.0,20150.0,0.15,3022.5,23172.5
