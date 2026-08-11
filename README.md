@@ -1,116 +1,89 @@
-# Engagement Book
+# Claude Code Workshop — Demo Apps
 
-A tiny engagement book for a one-person **fractional CTO** practice. Runs in your
-browser, no dependencies beyond Python itself.
+A collection of small, self-contained applications built during a Claude Code
+workshop. Each app was generated from a written prompt and then extended across
+several iterations, so the repo doubles as a set of worked examples for
+**scoping, building, and iterating on software with Claude Code**.
 
-Log an enquiry — **company, contact, what they need, where it came from** — scope
-it, and every engagement is saved as a line in `data/engagements.csv`.
+Every app is dependency-free: the HTML/JS apps are single files you open in a
+browser (no build step), and the Python apps use only the standard library
+(no `pip install`).
 
-## Pricing
-
-| Setting | Value |
-| --- | --- |
-| Day rate | **$1,850** / day (GST-exclusive) |
-| Handling on pass-through costs | **10%** on top |
-| GST | **15%** (New Zealand), shown as a GST-inclusive total |
-
-For each enquiry:
+## Repository layout
 
 ```
-fees            = days × $1,850
-handling        = pass-through costs × 10%
-subtotal (ex)   = fees + pass-through + handling
-GST             = subtotal × 15%
-total (incl)    = subtotal + GST
+hero_apps/       # larger "hero" demos, each built + extended live
+example_apps/    # 10 quick single-prompt apps, each with 2 follow-up iterations
 ```
 
-A **live quote** on the page recalculates as you type, and the figures are saved
-exactly as shown.
+Each app lives in its own folder, and **each iteration is a complete copy of the
+app** in an `iteration_N/` subfolder, so you can see exactly how it grew from one
+prompt to the next. The original prompt specs are kept alongside the code:
 
-## Status & follow-ups
+- `hero_apps/hero_apps.md`
+- `example_apps/app_prompts.md`
 
-Every engagement is marked **pending**, **won**, or **lost** (new enquiries
-default to pending). The book shows a coloured badge per row and a
-won / pending / lost tally.
+## Hero apps (`hero_apps/`)
 
-Any enquiry left **pending for more than 7 days** is flagged — the row shows a
-`⚠ Nd` age marker and a banner at the top reminds you how many need a follow-up.
-The threshold is `PENDING_STALE_DAYS` in `engagements.py`.
+| App | What it is | Iterations |
+| --- | --- | --- |
+| `hero_app_1/` | **Engagement Book** — a fractional-CTO enquiry/quote tool with pricing, capacity tracking, and branded PDF proposals (Python web app). See the folder's own notes below. | single build |
+| `kudos_wall/` | Team shoutout board with categories, then emoji reactions, then a "Kudos of the Week" spotlight + leaderboard. | 1–3 |
+| `neon_snake/` | Polished neon-styled Snake game — canvas, keyboard + swipe controls, high score. | 1 |
+| `trip_split/` | Group trip expense splitter with correct settle-up math, flexible splits/categories, dark mode, and copy-to-clipboard summary. | 1–3 |
 
-## Capacity — per calendar month
+## Example apps (`example_apps/`)
 
-A capacity bar is shown **for each calendar month** that has activity (plus the
-current month), against a ceiling of **14 billable days**. Each bar runs green,
-turns **amber past 11 days**, and **red past 14** (over capacity), with a marker
-at 11 and a note on days remaining or days over.
+Each folder has three iterations: the initial build plus two follow-up prompts.
 
-Only **won** days count toward committed capacity — pending is potential, lost
-is gone. A month is decided by the date an engagement was logged. Thresholds
-live as constants (`MONTHLY_CAPACITY_DAYS`, `CAPACITY_AMBER_DAYS`) in
-`engagements.py`.
+| # | App | Format | Grows from → to |
+| --- | --- | --- | --- |
+| 01 | Meeting Cost Calculator | HTML | live cost counter → meeting history → shareable summary |
+| 02 | Standup Note Builder | HTML | preview/copy → weekly history → carry-forward |
+| 03 | Local Kanban Board | HTML | drag-drop board → due dates/priority → done-today + archive |
+| 04 | Habit Tracker Grid | HTML | streak grid → effort gradient + % → CSV export + summary |
+| 05 | Focus Timer | Python (tkinter) | Pomodoro + CSV log → break cycle → stats window |
+| 06 | Downloads Declutterer | Python (CLI) | sort by type (dry-run/apply) → `--older-than-days` → collisions + `--undo` |
+| 07 | Duplicate File Finder | Python (CLI) | hash report → interactive delete → `--keep-newest --auto` + log |
+| 08 | Timesheet → Invoice | Python (CLI) | HTML invoice → expenses section → tax + companion CSV |
+| 09 | Decision Matrix | HTML | weighted table → bar chart → save/load named matrices |
+| 10 | Automation Effort Calculator | HTML | budget sliders → $/people ROI → ranked list + scatter plot |
 
-## Run it
+## Running the apps
+
+**HTML/JS apps** — open the `index.html` in any iteration folder directly in a
+browser. No server, no build step. State is saved to `localStorage`.
 
 ```bash
-python3 app.py
+# e.g. macOS
+open example_apps/03_local_kanban_board/iteration_3/index.html
 ```
 
-Then open **http://localhost:8000** (it tries to open your browser for you).
-No `pip install` needed — it uses only the Python standard library.
-
-To change the port: `PORT=9000 python3 app.py`.
-
-## Data
-
-Every engagement is appended to `data/engagements.csv` with these columns:
-
-```
-logged_at, company, contact, need, source, status,
-days, day_rate, fees, pass_through, handling_rate, handling,
-subtotal_ex_gst, gst_rate, gst, total_inc_gst
-```
-
-Older CSVs written before `status` existed are upgraded in place automatically
-on first run (the column is added with a `pending` default; existing figures are
-untouched).
-
-Open it in any spreadsheet, or keep it under version control.
-
-## Proposal PDF (branded as Keel)
-
-Every engagement in the book has a **PDF ↓** link that generates a one-page
-proposal and saves it into `exports/`:
-
-- **Hull-green** header band with the **Keel** wordmark
-- A **brass** rule as the waterline, and brass rules through the fee table
-- **Monospaced (Courier) figures** so the money column aligns to the cent
-- A clean **Scope & fees** table: day rate, days, pass-through + handling,
-  subtotal, GST, and the GST-inclusive total
-
-Generate one from the command line too (writes a worked example to `exports/`):
+**Python CLI apps** (06, 07, 08) — run with Python 3, standard library only.
 
 ```bash
-python3 proposal.py
+python3 example_apps/06_downloads_declutterer/iteration_3/declutter.py --help
 ```
 
-The PDF is written with the standard PDF fonts and no third-party libraries, so
-export needs no `pip install` either. `exports/keel-sample-proposal.pdf` is a
-committed example; other generated PDFs are git-ignored.
-
-## Tests
+**Python GUI app** (05 Focus Timer) — needs a desktop environment with tkinter.
 
 ```bash
+python3 example_apps/05_focus_timer/iteration_3/focus_timer.py
+```
+
+## About `hero_apps/hero_app_1` (Engagement Book)
+
+This is the most fully-featured app in the repo — a one-person fractional-CTO
+engagement book that logs enquiries, scopes them (day rate + pass-through
+handling + GST), tracks won/pending/lost status and monthly capacity, and
+generates branded one-page PDF proposals. It has its own tests
+(`test_engagements.py`) and runs as a local web app:
+
+```bash
+cd hero_apps/hero_app_1
+python3 app.py          # then open http://localhost:8000
 python3 test_engagements.py
 ```
 
-## Layout
-
-```
-app.py              # web server + page routing (stdlib http.server)
-engagements.py      # pricing maths + CSV read/write (framework-free, testable)
-proposal.py         # one-page Keel proposal PDF (stdlib, no PDF library)
-templates/index.html# the page: enquiry form, live quote, the book
-test_engagements.py # pricing, capacity, status + proposal checks
-data/engagements.csv# your engagement book
-exports/            # generated proposal PDFs land here
-```
+Its pricing, capacity thresholds, and data format are documented in comments and
+constants within `engagements.py`.
