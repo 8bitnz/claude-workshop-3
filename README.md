@@ -15,6 +15,7 @@ browser (no build step), and the Python apps use only the standard library
 hero_apps/       # larger "hero" demos, each built + extended live
 example_apps/    # 10 quick single-prompt apps, each with 2 follow-up iterations
 examples_games/  # small browser games, each a single-prompt build
+examples_sdd/    # spec-driven examples: PRD + tests, then the implementation
 ```
 
 Each app lives in its own folder, and **each iteration is a complete copy of the
@@ -24,6 +25,7 @@ prompt to the next. The original prompt specs are kept alongside the code:
 - `hero_apps/hero_apps.md`
 - `example_apps/app_prompts.md`
 - `examples_games/game_prompts.md`
+- `examples_sdd/*/spec.md` (a full PRD per example)
 
 ## Hero apps (`hero_apps/`)
 
@@ -62,6 +64,21 @@ each under `NN_name/iteration_1/`.
 | 02 | Boulder Dash | the dig-and-collect classic Boulder Dash | Arrow keys; push boulders sideways |
 | 03 | Dino Run | Chrome's offline "no internet" dino game | Space / ↑ jump · ↓ duck · tap to jump |
 
+## Spec-driven examples (`examples_sdd/`)
+
+Two examples built **spec-first**: each has a PRD (`spec.md`) whose *Acceptance
+criteria* are encoded as automated tests, and the implementation is written to
+pass them. Every acceptance-criteria bullet maps to a named test.
+
+| # | Example | Type | Spec → tests |
+| --- | --- | --- | --- |
+| 01 | Markdown Table Formatter | Python CLI (stdlib) | `spec.md` → `python3 test_mdtable.py` |
+| 02 | 2048 | HTML/JS game | `spec.md` → `node test_logic.js` |
+
+The 2048 example keeps its rules-heavy logic in `logic.js` as pure functions, so
+the same source runs in the browser (via `index.html`) **and** under Node for
+testing.
+
 ## Running the apps
 
 **HTML/JS apps and games** — open the `index.html` in any iteration folder
@@ -83,6 +100,13 @@ python3 example_apps/06_downloads_declutterer/iteration_3/declutter.py --help
 
 ```bash
 python3 example_apps/05_focus_timer/iteration_3/focus_timer.py
+```
+
+**Spec-driven examples' tests** — stdlib Python and Node, no runner needed:
+
+```bash
+python3 examples_sdd/01_markdown_table_formatter/iteration_1/test_mdtable.py
+node    examples_sdd/02_2048/iteration_1/test_logic.js
 ```
 
 ## About `hero_apps/hero_app_1` (Engagement Book)

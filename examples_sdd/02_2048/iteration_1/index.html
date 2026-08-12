@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>2048</title>
+<style>
+  :root { --bg:#faf8ef; --board:#bbada0; --empty:#cdc1b4; --text:#776e65; --btn:#8f7a66; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--text);
+    font-family:"Clear Sans","Segoe UI",system-ui,sans-serif; overflow:hidden; touch-action:none; }
+  .stage { min-height:100dvh; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; padding:14px; }
+  .top { display:flex; align-items:center; justify-content:space-between; width:min(92vw,440px); gap:12px; }
+  h1 { margin:0; font-size:clamp(2.2rem,9vw,3.2rem); font-weight:800; }
+  .scores { display:flex; gap:8px; }
+  .score { background:var(--board); color:#fff; border-radius:6px; padding:6px 14px; text-align:center; min-width:76px; }
+  .score .label { font-size:.62rem; letter-spacing:1px; text-transform:uppercase; color:#eee4da; }
+  .score .val { font-size:1.3rem; font-weight:800; }
+  .bar { display:flex; align-items:center; justify-content:space-between; width:min(92vw,440px); }
+  .bar p { margin:0; font-size:.9rem; opacity:.8; }
+  button.newgame { background:var(--btn); color:#fff; border:none; border-radius:6px; padding:10px 16px; font-weight:700; cursor:pointer; }
+  .board { position:relative; width:min(92vw,440px); aspect-ratio:1; background:var(--board); border-radius:8px; padding:12px; }
+  .grid { position:absolute; inset:12px; display:grid; grid-template-columns:repeat(4,1fr); grid-template-rows:repeat(4,1fr); gap:12px; }
+  .cell { background:var(--empty); border-radius:6px; }
+  .tiles { position:absolute; inset:12px; display:grid; grid-template-columns:repeat(4,1fr); grid-template-rows:repeat(4,1fr); gap:12px; pointer-events:none; }
+  .tile { display:flex; align-items:center; justify-content:center; border-radius:6px; font-weight:800;
+    font-size:clamp(1.3rem,6vw,2.1rem); background:#eee4da; color:#776e65; transition:transform .08s ease; }
+  .tile.spawn { animation:pop .16s ease; }
+  @keyframes pop { from { transform:scale(.5); } to { transform:scale(1); } }
+  .t2{background:#eee4da} .t4{background:#ede0c8}
+  .t8{background:#f2b179;color:#f9f6f2} .t16{background:#f59563;color:#f9f6f2}
+  .t32{background:#f67c5f;color:#f9f6f2} .t64{background:#f65e3b;color:#f9f6f2}
+  .t128{background:#edcf72;color:#f9f6f2;font-size:1.7rem} .t256{background:#edcc61;color:#f9f6f2;font-size:1.7rem}
+  .t512{background:#edc850;color:#f9f6f2;font-size:1.7rem} .t1024{background:#edc53f;color:#f9f6f2;font-size:1.4rem}
+  .t2048{background:#edc22e;color:#f9f6f2;font-size:1.4rem} .tbig{background:#3c3a32;color:#f9f6f2;font-size:1.3rem}
+  .overlay { position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center;
+    gap:14px; background:rgba(238,228,218,.73); border-radius:8px; text-align:center; }
+  .overlay.show { display:flex; }
+  .overlay h2 { margin:0; font-size:2rem; }
+  .hint { font-size:.8rem; opacity:.6; width:min(92vw,440px); text-align:center; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="top">
+    <h1>2048</h1>
+    <div class="scores">
+      <div class="score"><div class="label">Score</div><div class="val" id="score">0</div></div>
+      <div class="score"><div class="label">Best</div><div class="val" id="best">0</div></div>
+    </div>
+  </div>
+  <div class="bar">
+    <p>Join the tiles, reach <b>2048</b>!</p>
+    <button class="newgame" id="newgame">New Game</button>
+  </div>
+  <div class="board">
+    <div class="grid" id="cells"></div>
+    <div class="tiles" id="tiles"></div>
+    <div class="overlay" id="overlay">
+      <h2 id="ovTitle"></h2>
+      <button class="newgame" id="ovBtn">New Game</button>
+    </div>
+  </div>
+  <div class="hint">Arrow keys / WASD to move · swipe on mobile</div>
+</div>
+
+<script src="logic.js"></script>
+<script>
+const G = window.Game2048;
+const BEST_KEY = '2048.best';
+const $ = id => document.getElementById(id);
+
+let grid, score, best, over, won;
+best = +(localStorage.getItem(BEST_KEY) || 0);
+
+// static background cells
+$('cells').innerHTML = Array.from({length:16}, () => '<div class="cell"></div>').join('');
+
+function tileClass(v) {
+  if (v > 2048) return 'tbig';
+  return 't' + v;
+}
+
+function newGame() {
+  grid = G.emptyGrid();
+  grid = G.spawnTile(grid);
+  grid = G.spawnTile(grid);
+  score = 0; over = false; won = false;
+  $('overlay').classList.remove('show');
+  render(true);
+}
+
+function render(spawn) {
+  const t = $('tiles');
+  t.innerHTML = '';
+  for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) {
+    const v = grid[r][c];
+    const div = document.createElement('div');
+    if (v === 0) { div.style.visibility = 'hidden'; div.className = 'tile'; div.textContent = ''; }
+    else { div.className = 'tile ' + tileClass(v); div.textContent = v; if (spawn) div.classList.add('spawn'); }
+    t.appendChild(div);
+  }
+  $('score').textContent = score;
+  $('best').textContent = best;
+}
+
+function doMove(dir) {
+  if (over) return;
+  const res = G.move(grid, dir);
+  if (!res.moved) return;
+  grid = res.grid;
+  score += res.gained;
+  if (score > best) { best = score; localStorage.setItem(BEST_KEY, best); }
+  grid = G.spawnTile(grid);
+  render(true);
+
+  if (!won && G.isWin(grid)) { won = true; endGame('You win! 🎉'); }
+  else if (!G.hasMoves(grid)) { endGame('Game over'); }
+}
+
+function endGame(title) {
+  over = true;
+  $('ovTitle').textContent = title;
+  $('overlay').classList.add('show');
+}
+
+const KEYS = {
+  ArrowLeft:'left', KeyA:'left', ArrowRight:'right', KeyD:'right',
+  ArrowUp:'up', KeyW:'up', ArrowDown:'down', KeyS:'down'
+};
+document.addEventListener('keydown', e => {
+  if (KEYS[e.code]) { e.preventDefault(); doMove(KEYS[e.code]); }
+});
+
+// swipe
+let sx = 0, sy = 0;
+document.addEventListener('touchstart', e => { const t = e.changedTouches[0]; sx = t.clientX; sy = t.clientY; }, {passive:true});
+document.addEventListener('touchend', e => {
+  const t = e.changedTouches[0], dx = t.clientX - sx, dy = t.clientY - sy;
+  if (Math.abs(dx) < 24 && Math.abs(dy) < 24) return;
+  if (Math.abs(dx) > Math.abs(dy)) doMove(dx > 0 ? 'right' : 'left');
+  else doMove(dy > 0 ? 'down' : 'up');
+}, {passive:true});
+
+$('newgame').onclick = newGame;
+$('ovBtn').onclick = newGame;
+
+newGame();
+</script>
+</body>
+</html>
