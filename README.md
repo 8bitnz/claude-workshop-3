@@ -14,6 +14,7 @@ browser (no build step), and the Python apps use only the standard library
 ```
 hero_apps/       # larger "hero" demos, each built + extended live
 example_apps/    # 10 quick single-prompt apps, each with 2 follow-up iterations
+examples_games/  # small browser games, each a single-prompt build
 ```
 
 Each app lives in its own folder, and **each iteration is a complete copy of the
@@ -22,6 +23,7 @@ prompt to the next. The original prompt specs are kept alongside the code:
 
 - `hero_apps/hero_apps.md`
 - `example_apps/app_prompts.md`
+- `examples_games/game_prompts.md`
 
 ## Hero apps (`hero_apps/`)
 
@@ -49,10 +51,22 @@ Each folder has three iterations: the initial build plus two follow-up prompts.
 | 09 | Decision Matrix | HTML | weighted table → bar chart → save/load named matrices |
 | 10 | Automation Effort Calculator | HTML | budget sliders → $/people ROI → ranked list + scatter plot |
 
+## Example games (`examples_games/`)
+
+Small, self-contained browser games (single-file HTML + Canvas, no build step),
+each under `NN_name/iteration_1/`.
+
+| # | Game | Clone of | Controls |
+| --- | --- | --- | --- |
+| 01 | Asteroids | the arcade classic Asteroids | ← → rotate · ↑ thrust · Space fire |
+| 02 | Boulder Dash | the dig-and-collect classic Boulder Dash | Arrow keys; push boulders sideways |
+| 03 | Dino Run | Chrome's offline "no internet" dino game | Space / ↑ jump · ↓ duck · tap to jump |
+
 ## Running the apps
 
-**HTML/JS apps** — open the `index.html` in any iteration folder directly in a
-browser. No server, no build step. State is saved to `localStorage`.
+**HTML/JS apps and games** — open the `index.html` in any iteration folder
+directly in a browser. No server, no build step. State (and high scores) is
+saved to `localStorage`.
 
 ```bash
 # e.g. macOS
@@ -87,3 +101,17 @@ python3 test_engagements.py
 
 Its pricing, capacity thresholds, and data format are documented in comments and
 constants within `engagements.py`.
+
+## License
+
+This project is licensed under the **[PolyForm Noncommercial License 1.0.0](LICENSE)**.
+
+In short: you're free to use, modify, and share everything here for any
+**non-commercial** purpose — personal projects, learning, teaching, research, and
+use by non-profits or educational institutions. **Commercial use, including
+selling the code or products built from it, is not permitted.** Keep the
+copyright notice intact when you share it.
+
+This is a *source-available* license, not an OSI-approved open-source license
+(open-source licenses can't restrict commercial use). If you'd like to use any of
+this commercially, get in touch with the author.
