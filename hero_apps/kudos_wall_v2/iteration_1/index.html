@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kudos Wall</title>
+<style>
+  :root {
+    --bg: #fdf5ea;
+    --bg-tint: #fff2dc;
+    --card: #ffffff;
+    --ink: #362b22;
+    --muted: #8d7a69;
+    --line: #ecdfd0;
+    --field: #fffcf7;
+    --accent: #e07a3f;
+    --accent-2: #d1495b;
+    --shadow: 0 6px 22px rgba(90, 60, 30, 0.11);
+    --shadow-lift: 0 12px 30px rgba(90, 60, 30, 0.16);
+    --cat-teamwork: #3b82f6;
+    --cat-creativity: #a855f7;
+    --cat-above-beyond: #f59e0b;
+    --cat-leadership: #10b981;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--bg); } /* keeps a tall wall cream all the way down */
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: radial-gradient(circle at 18% 8%, var(--bg-tint), var(--bg) 60%);
+    color: var(--ink);
+    min-height: 100vh;
+    line-height: 1.5;
+  }
+
+  header { text-align: center; padding: 48px 20px 8px; }
+  header h1 {
+    margin: 0;
+    font-size: clamp(2.2rem, 6vw, 3.6rem);
+    letter-spacing: -1.5px;
+    background: linear-gradient(120deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  header p { color: var(--muted); margin: 10px 0 0; font-size: clamp(1rem, 2vw, 1.2rem); }
+
+  .wrap { max-width: 1140px; margin: 0 auto; padding: 0 20px 72px; }
+
+  /* ---- Post form ---- */
+  .post-form {
+    background: var(--card);
+    border-radius: 20px;
+    box-shadow: var(--shadow);
+    padding: 26px;
+    margin: 28px auto 36px;
+    display: grid;
+    gap: 16px;
+    grid-template-columns: 1fr 1fr;
+    max-width: 760px;
+  }
+  .post-form .full { grid-column: 1 / -1; }
+  label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+  }
+  input, textarea, select {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1.5px solid var(--line);
+    border-radius: 11px;
+    font-size: 1rem;
+    font-family: inherit;
+    background: var(--field);
+    color: var(--ink);
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  input:focus, textarea:focus, select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(224, 122, 63, 0.16);
+  }
+  textarea { resize: vertical; min-height: 76px; }
+  .count { margin-top: 6px; font-size: 0.78rem; color: var(--muted); text-align: right; }
+  .count.near { color: var(--accent-2); font-weight: 600; }
+  .post-btn {
+    grid-column: 1 / -1;
+    background: linear-gradient(120deg, var(--accent), var(--accent-2));
+    color: #fff;
+    border: none;
+    padding: 15px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    font-family: inherit;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: transform 0.12s, box-shadow 0.2s;
+  }
+  .post-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 22px rgba(209, 73, 91, 0.28); }
+  .post-btn:active { transform: none; }
+  .post-btn:focus-visible { outline: 3px solid rgba(224, 122, 63, 0.5); outline-offset: 2px; }
+
+  /* ---- Filter bar ---- */
+  .filter-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 26px;
+  }
+  .filter-bar label { margin: 0; }
+  .filter-bar select { width: auto; min-width: 200px; max-width: 280px; }
+  .clear {
+    background: none;
+    border: 1.5px solid var(--line);
+    color: var(--muted);
+    font-family: inherit;
+    font-size: 0.95rem;
+    padding: 11px 16px;
+    border-radius: 11px;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .clear:hover { border-color: var(--accent); color: var(--accent); }
+  .filter-count { width: 100%; text-align: center; color: var(--muted); font-size: 0.9rem; }
+
+  /* ---- Wall ---- */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+    gap: 20px;
+  }
+  .kcard {
+    background: var(--card);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    padding: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    border-top: 4px solid var(--cat, var(--accent));
+    animation: pop 0.25s ease both;
+    transition: transform 0.15s, box-shadow 0.2s;
+  }
+  .kcard:hover { transform: translateY(-3px); box-shadow: var(--shadow-lift); }
+  @keyframes pop {
+    from { opacity: 0; transform: scale(0.97) translateY(8px); }
+    to { opacity: 1; transform: none; }
+  }
+  .tag {
+    align-self: flex-start;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    padding: 5px 11px;
+    border-radius: 999px;
+    color: #fff;
+    background: var(--cat, var(--accent));
+  }
+  .msg {
+    font-size: 1.1rem;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+  .meta {
+    margin-top: auto;
+    padding-top: 4px;
+    font-size: 0.92rem;
+    color: var(--muted);
+    overflow-wrap: anywhere;
+  }
+  .meta strong { color: var(--ink); font-weight: 600; }
+
+  .empty {
+    text-align: center;
+    color: var(--muted);
+    padding: 64px 20px;
+    font-size: 1.1rem;
+  }
+
+  @media (max-width: 620px) {
+    header { padding-top: 34px; }
+    .post-form { grid-template-columns: 1fr; padding: 20px; }
+    .grid { grid-template-columns: 1fr; }
+    .filter-bar select { width: 100%; max-width: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🎉 Kudos Wall</h1>
+  <p>Give a teammate the shoutout they deserve.</p>
+</header>
+
+<div class="wrap">
+  <form class="post-form" id="form" autocomplete="off">
+    <div>
+      <label for="from">From</label>
+      <input id="from" required maxlength="40" placeholder="Your name">
+    </div>
+    <div>
+      <label for="to">To</label>
+      <input id="to" required maxlength="40" placeholder="Who deserves it?">
+    </div>
+    <div class="full">
+      <label for="message">Message</label>
+      <textarea id="message" required maxlength="140" placeholder="Say something nice…"></textarea>
+      <div class="count" id="count" aria-live="polite">0/140</div>
+    </div>
+    <div class="full">
+      <label for="category">Category</label>
+      <select id="category"></select>
+    </div>
+    <button type="submit" class="post-btn">Post Kudos</button>
+  </form>
+
+  <div class="filter-bar">
+    <label for="filter">Filter by recipient</label>
+    <select id="filter"></select>
+    <button type="button" class="clear" id="clearFilter">Show all</button>
+    <div class="filter-count" id="filterCount" aria-live="polite"></div>
+  </div>
+
+  <div class="grid" id="grid"></div>
+  <div class="empty" id="empty" hidden></div>
+</div>
+
+<script>
+const STORE_KEY = 'kudosWallV2.v1';
+
+// Categories drive the <select>, the tag label and the tag colour. The slug maps
+// to a --cat-* custom property, so "Above & Beyond" needs no special casing.
+const CATEGORIES = [
+  { name: 'Teamwork',      slug: 'teamwork' },
+  { name: 'Creativity',    slug: 'creativity' },
+  { name: 'Above & Beyond', slug: 'above-beyond' },
+  { name: 'Leadership',    slug: 'leadership' }
+];
+
+let kudos = load();
+
+function load() {
+  try { return JSON.parse(localStorage.getItem(STORE_KEY)) || []; }
+  catch { return []; }
+}
+function save() { localStorage.setItem(STORE_KEY, JSON.stringify(kudos)); }
+
+const $ = id => document.getElementById(id);
+const grid = $('grid'), empty = $('empty'), filterSel = $('filter'), countEl = $('count');
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function slugFor(name) {
+  const cat = CATEGORIES.find(c => c.name === name);
+  return cat ? cat.slug : 'teamwork';
+}
+
+// ---- Form ----
+$('category').innerHTML = CATEGORIES
+  .map(c => `<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('');
+
+$('message').addEventListener('input', e => {
+  const n = e.target.value.length;
+  countEl.textContent = n + '/140';
+  countEl.classList.toggle('near', n >= 120);
+});
+
+$('form').addEventListener('submit', e => {
+  e.preventDefault();
+  const from = $('from').value.trim();
+  const to = $('to').value.trim();
+  const message = $('message').value.trim();
+  if (!from || !to || !message) return; // whitespace-only input isn't a kudos
+
+  kudos.push({
+    id: Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+    from, to, message,
+    category: $('category').value,
+    created: Date.now()
+  });
+  save();
+
+  e.target.reset();
+  countEl.textContent = '0/140';
+  countEl.classList.remove('near');
+  render();
+  $('from').focus();
+});
+
+// ---- Filter ----
+filterSel.addEventListener('change', render);
+$('clearFilter').addEventListener('click', () => { filterSel.value = ''; render(); });
+
+function refreshFilterOptions() {
+  const recipients = [...new Set(kudos.map(k => k.to))].sort((a, b) => a.localeCompare(b));
+  const current = filterSel.value;
+  filterSel.innerHTML = '<option value="">Everyone</option>' +
+    recipients.map(r => `<option value="${esc(r)}">${esc(r)}</option>`).join('');
+  if (recipients.includes(current)) filterSel.value = current; // keep selection across re-renders
+}
+
+// ---- Render ----
+function render() {
+  refreshFilterOptions();
+  const filter = filterSel.value;
+
+  let list = [...kudos].sort((a, b) => b.created - a.created); // newest first
+  if (filter) list = list.filter(k => k.to === filter);
+
+  grid.innerHTML = list.map(k => `
+    <article class="kcard" style="--cat: var(--cat-${slugFor(k.category)})">
+      <span class="tag">${esc(k.category)}</span>
+      <p class="msg">“${esc(k.message)}”</p>
+      <p class="meta">from <strong>${esc(k.from)}</strong> to <strong>${esc(k.to)}</strong></p>
+    </article>`).join('');
+
+  empty.hidden = list.length > 0;
+  if (!list.length) {
+    empty.innerHTML = filter
+      ? `No kudos for <strong>${esc(filter)}</strong> yet — be the first. 🌟`
+      : 'No kudos yet — post the first one! 🌟';
+  }
+
+  $('filterCount').textContent = filter
+    ? `Showing ${list.length} of ${kudos.length} kudos`
+    : '';
+}
+
+render();
+</script>
+</body>
+</html>

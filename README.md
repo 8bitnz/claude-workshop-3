@@ -33,6 +33,7 @@ prompt to the next. The original prompt specs are kept alongside the code:
 | --- | --- | --- |
 | `hero_app_1/` | **Engagement Book** — a fractional-CTO enquiry/quote tool with pricing, capacity tracking, and branded PDF proposals (Python web app). See the folder's own notes below. | single build |
 | `kudos_wall/` | Team shoutout board with categories, then emoji reactions, then a "Kudos of the Week" spotlight + leaderboard. | 1–3 |
+| `kudos_wall_v2/` | A second, independent take on the same Kudos Wall prompt — same six features, different build. | 1 |
 | `neon_snake/` | Polished neon-styled Snake game — canvas, keyboard + swipe controls, high score. | 1 |
 | `trip_split/` | Group trip expense splitter with correct settle-up math, flexible splits/categories, dark mode, and copy-to-clipboard summary. | 1–3 |
 
