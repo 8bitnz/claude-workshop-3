@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Image Batch Reformatter</title>
+<style>
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,sans-serif; background:#0f172a; color:#e2e8f0;
+    min-height:100vh; padding:32px 20px 60px; }
+  .app { background:#1e293b; border-radius:18px; padding:32px; width:100%; max-width:1080px;
+    margin:0 auto; box-shadow:0 20px 60px rgba(0,0,0,.4); }
+  h1 { margin:0 0 6px; font-size:1.6rem; }
+  .sub { color:#94a3b8; margin:0 0 24px; font-size:.95rem; }
+
+  .drop {
+    border:2px dashed #334155; border-radius:14px; padding:34px 20px; text-align:center;
+    color:#94a3b8; cursor:pointer; transition:border-color .15s, background .15s;
+  }
+  .drop.drag { border-color:#38bdf8; background:rgba(56,189,248,.06); color:#e2e8f0; }
+  .drop strong { color:#e2e8f0; }
+  .drop input { display:none; }
+
+  .controls {
+    display:grid; grid-template-columns:repeat(auto-fit, minmax(150px,1fr));
+    gap:14px 16px; margin:24px 0 4px;
+  }
+  label { display:block; font-size:.78rem; color:#94a3b8; margin:0 0 4px; font-weight:600; text-transform:uppercase; letter-spacing:.02em; }
+  select, input[type=number], input[type=color] {
+    width:100%; padding:10px; border-radius:10px; border:1.5px solid #334155;
+    background:#0f172a; color:#e2e8f0; font-size:.95rem;
+  }
+  input[type=color] { padding:4px; height:40px; cursor:pointer; }
+  .field-row { display:flex; gap:8px; }
+  .field-row > div { flex:1; }
+  .hint { font-size:.75rem; color:#64748b; margin-top:3px; }
+
+  .quality-row { display:flex; align-items:center; gap:10px; }
+  .quality-row input[type=range] { flex:1; accent-color:#38bdf8; }
+  .quality-val { font-variant-numeric:tabular-nums; color:#e2e8f0; font-weight:700; width:3.4em; text-align:right; }
+
+  .fit-toggle { display:flex; gap:8px; }
+  .fit-toggle button {
+    flex:1; padding:10px; border-radius:10px; border:1.5px solid #334155; background:#0f172a;
+    color:#94a3b8; font-weight:600; cursor:pointer; font-size:.9rem;
+  }
+  .fit-toggle button.active { background:#38bdf8; color:#052836; border-color:#38bdf8; }
+
+  .actions { display:flex; align-items:center; gap:14px; margin:22px 0 6px; flex-wrap:wrap; }
+  .actions button {
+    padding:12px 22px; border:none; border-radius:10px; font-size:.95rem; font-weight:700; cursor:pointer;
+  }
+  .process { background:#22c55e; color:#052e16; }
+  .process:disabled { background:#334155; color:#64748b; cursor:not-allowed; }
+  .clear { background:#334155; color:#e2e8f0; }
+  .status { color:#94a3b8; font-size:.85rem; }
+
+  .grid {
+    display:grid; grid-template-columns:repeat(auto-fill, minmax(210px,1fr));
+    gap:16px; margin-top:22px;
+  }
+  .card {
+    background:#0f172a; border:1px solid #334155; border-radius:12px; overflow:hidden;
+    display:flex; flex-direction:column;
+  }
+  .card .thumbwrap {
+    background:
+      linear-gradient(45deg,#1e293b 25%,transparent 25%),
+      linear-gradient(-45deg,#1e293b 25%,transparent 25%),
+      linear-gradient(45deg,transparent 75%,#1e293b 75%),
+      linear-gradient(-45deg,transparent 75%,#1e293b 75%);
+    background-size:16px 16px;
+    background-position:0 0,0 8px,8px -8px,-8px 0px;
+    background-color:#0b1220;
+    aspect-ratio:4/3; display:flex; align-items:center; justify-content:center;
+  }
+  .card img { max-width:100%; max-height:100%; display:block; }
+  .card .meta { padding:12px 14px 14px; flex:1; display:flex; flex-direction:column; gap:6px; }
+  .card .fname { font-size:.85rem; font-weight:600; word-break:break-word; }
+  .card .dims { font-size:.78rem; color:#94a3b8; }
+  .card .sizes { font-size:.78rem; color:#94a3b8; }
+  .card .sizes .down { color:#4ade80; font-weight:700; }
+  .card .sizes .up { color:#f87171; font-weight:700; }
+  .card a.dl {
+    margin-top:auto; display:block; text-align:center; padding:9px; border-radius:8px;
+    background:#334155; color:#e2e8f0; text-decoration:none; font-weight:700; font-size:.85rem;
+  }
+  .card a.dl:hover { background:#475569; }
+  .card.pending .thumbwrap { color:#475569; font-size:.8rem; }
+  .empty { color:#64748b; font-size:.9rem; text-align:center; padding:30px 0; }
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>🖼️ Image Batch Reformatter</h1>
+  <p class="sub">Drop in a batch of images, pick a target size/format, and export publish-ready files — all in your browser, nothing uploaded anywhere.</p>
+
+  <div class="drop" id="drop">
+    <div><strong>Click to choose images</strong> or drag &amp; drop them here</div>
+    <div class="hint">JPEG, PNG, WebP, GIF — any number of files</div>
+    <input type="file" id="fileInput" accept="image/*" multiple>
+  </div>
+
+  <div class="controls">
+    <div>
+      <label for="preset">Output preset</label>
+      <select id="preset">
+        <option value="400x300">Thumbnail — 400×300</option>
+        <option value="800x800">Square — 800×800</option>
+        <option value="1200x400">Banner — 1200×400</option>
+        <option value="1200x630">Social — 1200×630</option>
+        <option value="custom">Custom size…</option>
+      </select>
+    </div>
+    <div id="customSizeWrap" style="display:none;">
+      <label>Custom size (px)</label>
+      <div class="field-row">
+        <div><input type="number" id="customW" min="1" value="1000" placeholder="Width"></div>
+        <div><input type="number" id="customH" min="1" value="1000" placeholder="Height"></div>
+      </div>
+    </div>
+    <div>
+      <label>Fit mode</label>
+      <div class="fit-toggle">
+        <button type="button" id="fitCover" class="active">Cover (crop)</button>
+        <button type="button" id="fitContain">Contain (fit)</button>
+      </div>
+    </div>
+    <div>
+      <label for="bgColor">Fill color (contain mode)</label>
+      <input type="color" id="bgColor" value="#ffffff">
+    </div>
+    <div>
+      <label for="format">Output format</label>
+      <select id="format">
+        <option value="image/jpeg">JPEG</option>
+        <option value="image/png">PNG</option>
+        <option value="image/webp">WebP</option>
+      </select>
+    </div>
+    <div id="qualityWrap">
+      <label for="quality">Quality</label>
+      <div class="quality-row">
+        <input type="range" id="quality" min="0.1" max="1" step="0.05" value="0.85">
+        <span class="quality-val" id="qualityVal">85%</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="process" id="processBtn" disabled>Reformat images</button>
+    <button class="clear" id="clearBtn">Clear all</button>
+    <span class="status" id="status"></span>
+  </div>
+
+  <div class="grid" id="grid">
+    <div class="empty" id="emptyMsg">No images loaded yet.</div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+let items = []; // {id, file, name, origW, origH, origSize, outURL, outBlob, outW, outH, outSize, status}
+let fitMode = 'cover';
+let idCounter = 0;
+
+const presetEl = $('preset'), customWrap = $('customSizeWrap'), customW = $('customW'), customH = $('customH');
+const formatEl = $('format'), qualityWrap = $('qualityWrap'), qualityEl = $('quality'), qualityVal = $('qualityVal');
+const bgColorEl = $('bgColor'), grid = $('grid'), emptyMsg = $('emptyMsg'), statusEl = $('status');
+const processBtn = $('processBtn'), clearBtn = $('clearBtn');
+const dropEl = $('drop'), fileInput = $('fileInput');
+const fitCoverBtn = $('fitCover'), fitContainBtn = $('fitContain');
+
+function targetSize() {
+  if (presetEl.value === 'custom') {
+    return [Math.max(1, parseInt(customW.value) || 1), Math.max(1, parseInt(customH.value) || 1)];
+  }
+  const [w, h] = presetEl.value.split('x').map(Number);
+  return [w, h];
+}
+
+presetEl.addEventListener('change', () => {
+  customWrap.style.display = presetEl.value === 'custom' ? 'block' : 'none';
+});
+
+fitCoverBtn.addEventListener('click', () => setFit('cover'));
+fitContainBtn.addEventListener('click', () => setFit('contain'));
+function setFit(mode) {
+  fitMode = mode;
+  fitCoverBtn.classList.toggle('active', mode === 'cover');
+  fitContainBtn.classList.toggle('active', mode === 'contain');
+}
+
+formatEl.addEventListener('change', () => {
+  qualityWrap.style.display = formatEl.value === 'image/png' ? 'none' : 'block';
+});
+qualityEl.addEventListener('input', () => {
+  qualityVal.textContent = Math.round(qualityEl.value * 100) + '%';
+});
+
+// --- file intake ---
+dropEl.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => addFiles(e.target.files));
+
+['dragenter','dragover'].forEach(evt => dropEl.addEventListener(evt, e => {
+  e.preventDefault(); dropEl.classList.add('drag');
+}));
+['dragleave','drop'].forEach(evt => dropEl.addEventListener(evt, e => {
+  e.preventDefault(); dropEl.classList.remove('drag');
+}));
+dropEl.addEventListener('drop', e => {
+  if (e.dataTransfer && e.dataTransfer.files) addFiles(e.dataTransfer.files);
+});
+
+function addFiles(fileList) {
+  const files = Array.from(fileList).filter(f => f.type.startsWith('image/'));
+  if (!files.length) return;
+
+  files.forEach(file => {
+    const id = ++idCounter;
+    const item = { id, file, name: file.name, origSize: file.size, status: 'loaded' };
+    items.push(item);
+    const img = new Image();
+    img.onload = () => {
+      item.origW = img.naturalWidth;
+      item.origH = img.naturalHeight;
+      item.imgEl = img;
+      renderGrid();
+    };
+    img.src = URL.createObjectURL(file);
+  });
+  processBtn.disabled = false;
+  renderGrid();
+}
+
+clearBtn.addEventListener('click', () => {
+  items.forEach(it => { if (it.outURL) URL.revokeObjectURL(it.outURL); });
+  items = [];
+  fileInput.value = '';
+  processBtn.disabled = true;
+  statusEl.textContent = '';
+  renderGrid();
+});
+
+processBtn.addEventListener('click', () => processAll());
+
+async function processAll() {
+  if (!items.length) return;
+  processBtn.disabled = true;
+  const [tw, th] = targetSize();
+  const fmt = formatEl.value;
+  const quality = parseFloat(qualityEl.value);
+  const bg = bgColorEl.value;
+  let done = 0;
+
+  for (const item of items) {
+    if (!item.imgEl) continue;
+    item.status = 'processing';
+    renderGrid();
+    try {
+      const blob = await renderToBlob(item.imgEl, tw, th, fitMode, fmt, quality, bg);
+      if (item.outURL) URL.revokeObjectURL(item.outURL);
+      item.outBlob = blob;
+      item.outURL = URL.createObjectURL(blob);
+      item.outW = tw; item.outH = th;
+      item.outSize = blob.size;
+      item.outExt = fmt === 'image/png' ? 'png' : (fmt === 'image/webp' ? 'webp' : 'jpg');
+      item.status = 'done';
+    } catch (err) {
+      item.status = 'error';
+      item.errorMsg = err.message || 'Failed to process';
+    }
+    done++;
+    statusEl.textContent = `Processed ${done} / ${items.length}`;
+    renderGrid();
+  }
+  processBtn.disabled = false;
+}
+
+function renderToBlob(img, tw, th, mode, mimeType, quality, bg) {
+  return new Promise((resolve, reject) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = tw;
+    canvas.height = th;
+    const ctx = canvas.getContext('2d');
+
+    if (mimeType !== 'image/png') {
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, tw, th);
+    } else if (mode === 'contain') {
+      // keep transparency for PNG contain, but if a non-white bg was picked and
+      // user wants it, still respect it as a background fill.
+      ctx.clearRect(0, 0, tw, th);
+    }
+
+    const sw = img.naturalWidth, sh = img.naturalHeight;
+    const srcRatio = sw / sh, dstRatio = tw / th;
+
+    if (mode === 'cover') {
+      let cropW = sw, cropH = sh, sx = 0, sy = 0;
+      if (srcRatio > dstRatio) {
+        cropW = sh * dstRatio;
+        sx = (sw - cropW) / 2;
+      } else {
+        cropH = sw / dstRatio;
+        sy = (sh - cropH) / 2;
+      }
+      ctx.drawImage(img, sx, sy, cropW, cropH, 0, 0, tw, th);
+    } else {
+      // contain: fit whole image inside, centered, fill remaining with bg
+      let drawW, drawH;
+      if (srcRatio > dstRatio) {
+        drawW = tw;
+        drawH = tw / srcRatio;
+      } else {
+        drawH = th;
+        drawW = th * srcRatio;
+      }
+      const dx = (tw - drawW) / 2, dy = (th - drawH) / 2;
+      ctx.drawImage(img, 0, 0, sw, sh, dx, dy, drawW, drawH);
+    }
+
+    canvas.toBlob(blob => {
+      if (blob) resolve(blob); else reject(new Error('Canvas export failed'));
+    }, mimeType, mimeType === 'image/png' ? undefined : quality);
+  });
+}
+
+function fmtBytes(n) {
+  if (n == null) return '';
+  if (n < 1024) return n + ' B';
+  if (n < 1024*1024) return (n/1024).toFixed(1) + ' KB';
+  return (n/1024/1024).toFixed(2) + ' MB';
+}
+
+function renderGrid() {
+  if (!items.length) {
+    grid.innerHTML = '';
+    grid.appendChild(emptyMsg);
+    return;
+  }
+  grid.innerHTML = '';
+  items.forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'card' + (item.status !== 'done' ? ' pending' : '');
+
+    const thumbwrap = document.createElement('div');
+    thumbwrap.className = 'thumbwrap';
+    if (item.status === 'done') {
+      const img = document.createElement('img');
+      img.src = item.outURL;
+      thumbwrap.appendChild(img);
+    } else if (item.imgEl) {
+      const img = document.createElement('img');
+      img.src = item.imgEl.src;
+      thumbwrap.appendChild(img);
+    } else {
+      thumbwrap.textContent = 'Loading…';
+    }
+    card.appendChild(thumbwrap);
+
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+
+    const fname = document.createElement('div');
+    fname.className = 'fname';
+    fname.textContent = item.name;
+    meta.appendChild(fname);
+
+    const dims = document.createElement('div');
+    dims.className = 'dims';
+    if (item.status === 'done') {
+      dims.textContent = `${item.origW}×${item.origH} → ${item.outW}×${item.outH}`;
+    } else if (item.origW) {
+      dims.textContent = `${item.origW}×${item.origH} (original)`;
+    } else {
+      dims.textContent = 'Reading dimensions…';
+    }
+    meta.appendChild(dims);
+
+    const sizes = document.createElement('div');
+    sizes.className = 'sizes';
+    if (item.status === 'done') {
+      const delta = item.outSize - item.origSize;
+      const cls = delta <= 0 ? 'down' : 'up';
+      const sign = delta <= 0 ? '−' : '+';
+      sizes.innerHTML = `${fmtBytes(item.origSize)} → ${fmtBytes(item.outSize)} <span class="${cls}">(${sign}${fmtBytes(Math.abs(delta))})</span>`;
+    } else if (item.status === 'processing') {
+      sizes.textContent = 'Processing…';
+    } else if (item.status === 'error') {
+      sizes.textContent = item.errorMsg || 'Error';
+    } else {
+      sizes.textContent = fmtBytes(item.origSize) + ' (original)';
+    }
+    meta.appendChild(sizes);
+
+    if (item.status === 'done') {
+      const a = document.createElement('a');
+      a.className = 'dl';
+      a.href = item.outURL;
+      const base = item.name.replace(/\.[^.]+$/, '');
+      a.download = `${base}_${item.outW}x${item.outH}.${item.outExt}`;
+      a.textContent = 'Download';
+      meta.appendChild(a);
+    }
+
+    card.appendChild(meta);
+    grid.appendChild(card);
+  });
+}
+
+renderGrid();
+</script>
+</body>
+</html>

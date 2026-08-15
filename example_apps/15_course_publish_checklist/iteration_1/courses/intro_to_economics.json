@@ -1,0 +1,13 @@
+{
+  "title": "Introduction to Economics",
+  "has_syllabus": true,
+  "modules": [
+    {"title": "Supply and Demand", "has_content": true, "has_learning_objectives": true},
+    {"title": "Market Structures", "has_content": true, "has_learning_objectives": true}
+  ],
+  "assessment_weights": {
+    "Quizzes": 20,
+    "Midterm Exam": 30,
+    "Final Exam": 50
+  }
+}

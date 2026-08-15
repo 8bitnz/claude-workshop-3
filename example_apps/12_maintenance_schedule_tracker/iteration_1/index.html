@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maintenance Schedule Tracker</title>
+<style>
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,sans-serif; background:#0f172a; color:#e2e8f0;
+    min-height:100vh; padding:32px 20px; }
+  .app { background:#1e293b; border-radius:18px; padding:32px; width:100%; max-width:900px;
+    margin:0 auto; box-shadow:0 20px 60px rgba(0,0,0,.4); }
+  h1 { margin:0 0 6px; font-size:1.6rem; }
+  .sub { color:#94a3b8; margin:0 0 24px; font-size:.95rem; }
+  h2 { font-size:1.05rem; margin:0 0 12px; color:#e2e8f0; }
+  section { margin-bottom:32px; }
+  label { display:block; font-size:.78rem; color:#94a3b8; margin:10px 0 4px; font-weight:600; }
+  input, select, textarea { width:100%; padding:10px; border-radius:10px; border:1.5px solid #334155;
+    background:#0f172a; color:#e2e8f0; font-size:.95rem; font-family:inherit; }
+  textarea { resize:vertical; min-height:50px; }
+  .row { display:flex; gap:12px; flex-wrap:wrap; }
+  .row > div { flex:1; min-width:120px; }
+  button { padding:11px 16px; border:none; border-radius:10px; font-size:.9rem; font-weight:700;
+    cursor:pointer; font-family:inherit; }
+  button:hover { filter:brightness(1.1); }
+  .primary { background:#22c55e; color:#052e16; }
+  .secondary { background:#334155; color:#e2e8f0; }
+  .danger { background:#ef4444; color:#450a0a; }
+  .add-form { display:flex; flex-direction:column; gap:4px; }
+  .add-form .submit-row { margin-top:14px; }
+
+  .summary { display:flex; gap:12px; margin-bottom:18px; flex-wrap:wrap; }
+  .stat { flex:1; min-width:110px; background:#0f172a; border-radius:12px; padding:14px 16px; border:1.5px solid #334155; }
+  .stat .num { font-size:1.6rem; font-weight:800; }
+  .stat .lbl { font-size:.75rem; color:#94a3b8; margin-top:2px; }
+  .stat.overdue .num { color:#ef4444; }
+  .stat.soon .num { color:#f59e0b; }
+  .stat.ok .num { color:#22c55e; }
+
+  .asset-card { background:#0f172a; border-radius:12px; padding:16px 18px; margin-bottom:10px;
+    border-left:4px solid #334155; }
+  .asset-card.overdue { border-left-color:#ef4444; }
+  .asset-card.soon { border-left-color:#f59e0b; }
+  .asset-card.ok { border-left-color:#22c55e; }
+  .asset-top { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; }
+  .asset-name { font-weight:700; font-size:1.05rem; }
+  .asset-meta { color:#94a3b8; font-size:.82rem; margin-top:4px; }
+  .badge { font-size:.72rem; font-weight:700; padding:3px 9px; border-radius:999px; white-space:nowrap; }
+  .badge.overdue { background:#450a0a; color:#fca5a5; }
+  .badge.soon { background:#3a2400; color:#fcd34d; }
+  .badge.ok { background:#052e16; color:#86efac; }
+  .asset-actions { display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
+  .asset-actions button { padding:7px 12px; font-size:.8rem; }
+
+  .log-panel { background:#111827; border-radius:10px; padding:14px 16px; margin-top:10px; display:none; }
+  .log-panel.open { display:block; }
+  .log-panel .row { margin-bottom:4px; }
+
+  table { width:100%; border-collapse:collapse; font-size:.85rem; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid #334155; }
+  th { color:#94a3b8; font-size:.72rem; text-transform:uppercase; letter-spacing:.03em; }
+  tr:last-child td { border-bottom:none; }
+  .empty { color:#64748b; font-size:.88rem; padding:12px 0; }
+  .export-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:10px; }
+  .table-wrap { overflow-x:auto; }
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>🔧 Maintenance Schedule Tracker</h1>
+  <p class="sub">Track recurring maintenance on your equipment, see what's overdue, and export a clean cost log ready for accounting/invoicing software.</p>
+
+  <section>
+    <h2>Add Equipment / Asset</h2>
+    <div class="add-form">
+      <div class="row">
+        <div>
+          <label for="assetName">Asset name</label>
+          <input id="assetName" type="text" placeholder="e.g. Delivery Van #2">
+        </div>
+        <div>
+          <label for="lastServiced">Last serviced date</label>
+          <input id="lastServiced" type="date">
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="intervalValue">Maintenance interval</label>
+          <input id="intervalValue" type="number" min="1" value="3">
+        </div>
+        <div>
+          <label for="intervalUnit">Interval unit</label>
+          <select id="intervalUnit">
+            <option value="days">Days</option>
+            <option value="weeks">Weeks</option>
+            <option value="months" selected>Months</option>
+          </select>
+        </div>
+      </div>
+      <div class="submit-row">
+        <button class="primary" id="addAssetBtn">+ Add Asset</button>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Dashboard</h2>
+    <div class="summary">
+      <div class="stat overdue"><div class="num" id="countOverdue">0</div><div class="lbl">Overdue</div></div>
+      <div class="stat soon"><div class="num" id="countSoon">0</div><div class="lbl">Due soon (7 days)</div></div>
+      <div class="stat ok"><div class="num" id="countOk">0</div><div class="lbl">On track</div></div>
+    </div>
+    <div id="assetList"></div>
+    <div class="empty" id="assetEmpty" style="display:none;">No assets yet — add one above to get started.</div>
+  </section>
+
+  <section>
+    <div class="export-row">
+      <h2 style="margin:0;">Maintenance History Log</h2>
+      <button class="secondary" id="exportBtn">⬇ Export CSV</button>
+    </div>
+    <div class="table-wrap">
+      <table id="historyTable">
+        <thead>
+          <tr><th>Date</th><th>Description</th><th>Amount</th><th>Reference</th></tr>
+        </thead>
+        <tbody id="historyBody"></tbody>
+      </table>
+    </div>
+    <div class="empty" id="historyEmpty" style="display:none;">No maintenance logged yet.</div>
+  </section>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const STORAGE_KEY = 'maint_tracker_assets_v1';
+const HISTORY_KEY = 'maint_tracker_history_v1';
+
+let assets = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+let history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+
+function save() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(assets));
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+}
+
+function todayISO() {
+  return new Date().toISOString().slice(0,10);
+}
+
+function addDays(dateStr, days) {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0,10);
+}
+
+function addInterval(dateStr, value, unit) {
+  const d = new Date(dateStr + 'T00:00:00');
+  if (unit === 'days') d.setDate(d.getDate() + value);
+  else if (unit === 'weeks') d.setDate(d.getDate() + value * 7);
+  else if (unit === 'months') d.setMonth(d.getMonth() + value);
+  return d.toISOString().slice(0,10);
+}
+
+function daysBetween(a, b) {
+  const da = new Date(a + 'T00:00:00'), db = new Date(b + 'T00:00:00');
+  return Math.round((db - da) / 86400000);
+}
+
+function nextDue(asset) {
+  return addInterval(asset.lastServiced, asset.intervalValue, asset.intervalUnit);
+}
+
+function statusOf(asset) {
+  const due = nextDue(asset);
+  const diff = daysBetween(todayISO(), due);
+  if (diff < 0) return 'overdue';
+  if (diff <= 7) return 'soon';
+  return 'ok';
+}
+
+function fmtDate(d) {
+  return new Date(d + 'T00:00:00').toLocaleDateString(undefined, { year:'numeric', month:'short', day:'numeric' });
+}
+
+function fmtMoney(n) {
+  return '$' + Number(n).toFixed(2);
+}
+
+function render() {
+  const list = $('assetList');
+  list.innerHTML = '';
+  let overdue = 0, soon = 0, ok = 0;
+
+  const sorted = [...assets].sort((a,b) => daysBetween(todayISO(), nextDue(a)) - daysBetween(todayISO(), nextDue(b)));
+
+  sorted.forEach(asset => {
+    const status = statusOf(asset);
+    if (status === 'overdue') overdue++;
+    else if (status === 'soon') soon++;
+    else ok++;
+
+    const due = nextDue(asset);
+    const diff = daysBetween(todayISO(), due);
+    let statusText;
+    if (status === 'overdue') statusText = `Overdue by ${Math.abs(diff)} day${Math.abs(diff)===1?'':'s'}`;
+    else if (status === 'soon') statusText = diff === 0 ? 'Due today' : `Due in ${diff} day${diff===1?'':'s'}`;
+    else statusText = `Due in ${diff} days`;
+
+    const card = document.createElement('div');
+    card.className = 'asset-card ' + status;
+    card.innerHTML = `
+      <div class="asset-top">
+        <div>
+          <div class="asset-name">${escapeHtml(asset.name)}</div>
+          <div class="asset-meta">Every ${asset.intervalValue} ${asset.intervalUnit} · last serviced ${fmtDate(asset.lastServiced)} · next due ${fmtDate(due)}</div>
+        </div>
+        <span class="badge ${status}">${statusText}</span>
+      </div>
+      <div class="asset-actions">
+        <button class="primary" data-action="log" data-id="${asset.id}">Log Maintenance</button>
+        <button class="danger" data-action="delete" data-id="${asset.id}">Delete</button>
+      </div>
+      <div class="log-panel" id="log-${asset.id}">
+        <div class="row">
+          <div>
+            <label>Completion date</label>
+            <input type="date" class="log-date" value="${todayISO()}">
+          </div>
+          <div>
+            <label>Cost ($)</label>
+            <input type="number" class="log-cost" min="0" step="0.01" placeholder="0.00">
+          </div>
+        </div>
+        <label>Notes</label>
+        <textarea class="log-notes" placeholder="What was done?"></textarea>
+        <div class="submit-row" style="margin-top:10px; display:flex; gap:8px;">
+          <button class="primary" data-action="save-log" data-id="${asset.id}">Save</button>
+          <button class="secondary" data-action="cancel-log" data-id="${asset.id}">Cancel</button>
+        </div>
+      </div>
+    `;
+    list.appendChild(card);
+  });
+
+  $('assetEmpty').style.display = assets.length ? 'none' : 'block';
+  $('countOverdue').textContent = overdue;
+  $('countSoon').textContent = soon;
+  $('countOk').textContent = ok;
+
+  renderHistory();
+}
+
+function renderHistory() {
+  const body = $('historyBody');
+  body.innerHTML = '';
+  const sorted = [...history].sort((a,b) => b.date.localeCompare(a.date));
+  sorted.forEach(entry => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${fmtDate(entry.date)}</td>
+      <td>${escapeHtml(entry.description)}</td>
+      <td>${fmtMoney(entry.amount)}</td>
+      <td>${escapeHtml(entry.reference)}</td>
+    `;
+    body.appendChild(tr);
+  });
+  $('historyEmpty').style.display = history.length ? 'none' : 'block';
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str ?? '';
+  return div.innerHTML;
+}
+
+$('addAssetBtn').addEventListener('click', () => {
+  const name = $('assetName').value.trim();
+  const lastServiced = $('lastServiced').value || todayISO();
+  const intervalValue = parseInt($('intervalValue').value, 10);
+  const intervalUnit = $('intervalUnit').value;
+
+  if (!name) { alert('Please enter an asset name.'); return; }
+  if (!intervalValue || intervalValue < 1) { alert('Please enter a valid interval.'); return; }
+
+  assets.push({
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+    name, lastServiced, intervalValue, intervalUnit
+  });
+  save();
+  $('assetName').value = '';
+  $('lastServiced').value = '';
+  $('intervalValue').value = 3;
+  render();
+});
+
+$('assetList').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-action]');
+  if (!btn) return;
+  const action = btn.dataset.action;
+  const id = btn.dataset.id;
+
+  if (action === 'log') {
+    document.querySelectorAll('.log-panel.open').forEach(p => p.classList.remove('open'));
+    $('log-' + id).classList.add('open');
+  } else if (action === 'cancel-log') {
+    $('log-' + id).classList.remove('open');
+  } else if (action === 'delete') {
+    if (confirm('Delete this asset? Its maintenance history log entries will be kept.')) {
+      assets = assets.filter(a => a.id !== id);
+      save();
+      render();
+    }
+  } else if (action === 'save-log') {
+    const panel = $('log-' + id);
+    const date = panel.querySelector('.log-date').value || todayISO();
+    const cost = parseFloat(panel.querySelector('.log-cost').value) || 0;
+    const notes = panel.querySelector('.log-notes').value.trim();
+    const asset = assets.find(a => a.id === id);
+    if (!asset) return;
+
+    history.push({
+      date,
+      description: `Maintenance – ${asset.name}${notes ? ': ' + notes : ''}`,
+      amount: cost,
+      reference: asset.name
+    });
+
+    asset.lastServiced = date;
+    save();
+    render();
+  }
+});
+
+$('exportBtn').addEventListener('click', () => {
+  if (!history.length) { alert('No maintenance history to export yet.'); return; }
+  const rows = [['Date','Description','Amount','Reference']];
+  [...history].sort((a,b) => a.date.localeCompare(b.date)).forEach(e => {
+    rows.push([e.date, e.description, e.amount.toFixed(2), e.reference]);
+  });
+  const csv = rows.map(r => r.map(csvEscape).join(',')).join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `maintenance_history_${todayISO()}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+function csvEscape(val) {
+  const s = String(val);
+  if (/[",\r\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+
+if (!$('lastServiced').value) $('lastServiced').value = todayISO();
+
+render();
+</script>
+</body>
+</html>

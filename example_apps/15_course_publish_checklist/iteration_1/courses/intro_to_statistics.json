@@ -1,0 +1,14 @@
+{
+  "title": "Introduction to Statistics",
+  "has_syllabus": true,
+  "modules": [
+    {"title": "Week 1: Descriptive Statistics", "has_content": true, "has_learning_objectives": true},
+    {"title": "Week 2: Probability Basics", "has_content": true, "has_learning_objectives": true},
+    {"title": "Week 3: Hypothesis Testing", "has_content": true, "has_learning_objectives": true}
+  ],
+  "assessment_weights": {
+    "Homework": 30,
+    "Midterm Exam": 30,
+    "Final Exam": 40
+  }
+}
