@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Estimate vs Actual Tracker</title>
+<style>
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,sans-serif; background:#0f172a; color:#e2e8f0;
+    min-height:100vh; padding:32px 20px; }
+  .wrap { max-width:900px; margin:0 auto; }
+  h1 { margin:0 0 4px; font-size:1.6rem; }
+  .sub { color:#94a3b8; margin:0 0 24px; font-size:.95rem; }
+  .card { background:#1e293b; border-radius:16px; padding:22px 24px; margin-bottom:20px;
+    box-shadow:0 12px 40px rgba(0,0,0,.35); }
+  h2 { margin:0 0 14px; font-size:1.05rem; color:#e2e8f0; }
+  h2 .hint { color:#64748b; font-weight:400; font-size:.8rem; }
+
+  /* stats row */
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
+  .stat { background:#0f172a; border:1px solid #334155; border-radius:12px; padding:14px 16px; }
+  .stat .val { font-size:1.5rem; font-weight:800; font-variant-numeric:tabular-nums; }
+  .stat .lbl { color:#94a3b8; font-size:.75rem; margin-top:2px; }
+  .trend-up { color:#f87171; }   /* getting worse (further from 1.0) */
+  .trend-down { color:#4ade80; } /* improving (closer to 1.0) */
+  .trend-flat { color:#94a3b8; }
+
+  /* form */
+  .form-row { display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; }
+  .field { display:flex; flex-direction:column; gap:4px; flex:1; min-width:120px; }
+  .field.small { flex:0 0 90px; min-width:90px; }
+  label { font-size:.75rem; color:#94a3b8; font-weight:600; }
+  input, select { padding:10px; border-radius:9px; border:1.5px solid #334155; background:#0f172a;
+    color:#e2e8f0; font-size:.92rem; width:100%; }
+  input:focus, select:focus { outline:none; border-color:#6366f1; }
+  button { border:none; border-radius:9px; padding:10px 16px; font-weight:700; font-size:.9rem; cursor:pointer; }
+  button:hover { filter:brightness(1.1); }
+  .btn-primary { background:#6366f1; color:#fff; }
+  .btn-ghost { background:#334155; color:#e2e8f0; }
+  .btn-danger { background:transparent; color:#f87171; padding:6px 8px; font-size:1rem; }
+  .btn-complete { background:#22c55e; color:#052e16; padding:7px 12px; font-size:.82rem; }
+
+  /* lists / tables */
+  .task-row { display:flex; flex-wrap:wrap; gap:10px; align-items:center; padding:10px 0;
+    border-bottom:1px solid #273449; }
+  .task-row:last-child { border-bottom:none; }
+  .task-main { flex:1; min-width:140px; }
+  .task-name { font-weight:600; }
+  .tag { display:inline-block; background:#334155; color:#a5b4fc; font-size:.7rem;
+    padding:2px 8px; border-radius:999px; margin-left:8px; vertical-align:middle; }
+  .task-est { color:#94a3b8; font-size:.82rem; margin-top:2px; }
+  .complete-inline { display:flex; gap:6px; align-items:center; }
+  .complete-inline input { width:80px; }
+  .complete-inline select { width:70px; }
+  .empty { color:#64748b; font-size:.9rem; padding:8px 0; }
+
+  table { width:100%; border-collapse:collapse; font-size:.88rem; }
+  th, td { text-align:left; padding:9px 8px; border-bottom:1px solid #273449; }
+  th { color:#94a3b8; font-size:.72rem; text-transform:uppercase; letter-spacing:.04em; font-weight:700; }
+  td.num { font-variant-numeric:tabular-nums; }
+  .variance { font-weight:700; }
+  .v-over { color:#f87171; }
+  .v-under { color:#60a5fa; }
+  .v-good { color:#4ade80; }
+  .table-wrap { overflow-x:auto; }
+
+  .toolbar { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+  .filter select { width:auto; min-width:140px; }
+
+  /* chart */
+  .chart-legend { display:flex; gap:16px; flex-wrap:wrap; font-size:.78rem; color:#94a3b8; margin-top:10px; }
+  .chart-legend span { display:inline-flex; align-items:center; gap:5px; }
+  .dot { width:9px; height:9px; border-radius:50%; display:inline-block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>⏱️ Estimate vs Actual Tracker</h1>
+  <p class="sub">Log a time estimate before you start, record what it actually took, and watch whether your estimates are getting better.</p>
+
+  <div class="card">
+    <h2>Overview</h2>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <div class="card">
+    <h2>Add a task</h2>
+    <div class="form-row">
+      <div class="field" style="flex:2; min-width:200px;">
+        <label for="name">Task name</label>
+        <input id="name" type="text" placeholder="e.g. Write onboarding email">
+      </div>
+      <div class="field small">
+        <label for="estValue">Estimate</label>
+        <input id="estValue" type="number" min="0" step="1" placeholder="30">
+      </div>
+      <div class="field small">
+        <label for="estUnit">Unit</label>
+        <select id="estUnit">
+          <option value="min">min</option>
+          <option value="hr">hr</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="category">Category <span style="font-weight:400;color:#64748b;">(optional)</span></label>
+        <input id="category" type="text" list="catList" placeholder="e.g. Writing">
+        <datalist id="catList"></datalist>
+      </div>
+      <div class="field" style="flex:0;">
+        <label>&nbsp;</label>
+        <button class="btn-primary" id="addBtn">+ Add task</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Active tasks <span class="hint">not yet marked complete</span></h2>
+    <div id="activeList"></div>
+  </div>
+
+  <div class="card">
+    <div class="toolbar">
+      <h2 style="margin:0;">Completed tasks</h2>
+      <div class="filter">
+        <select id="catFilter"><option value="">All categories</option></select>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table id="completedTable">
+        <thead>
+          <tr><th>Task</th><th>Category</th><th>Estimated</th><th>Actual</th><th>Variance</th><th></th></tr>
+        </thead>
+        <tbody id="completedBody"></tbody>
+      </table>
+    </div>
+    <div class="empty" id="completedEmpty" style="display:none;">No completed tasks yet — mark an active task complete to see it here.</div>
+  </div>
+
+  <div class="card">
+    <h2>Estimation accuracy trend <span class="hint">actual ÷ estimated, per completed task, in order</span></h2>
+    <div id="chartHolder"></div>
+    <div class="chart-legend">
+      <span><span class="dot" style="background:#4ade80;"></span> within 15% of estimate</span>
+      <span><span class="dot" style="background:#f87171;"></span> ran over</span>
+      <span><span class="dot" style="background:#60a5fa;"></span> ran under</span>
+    </div>
+  </div>
+</div>
+
+<script>
+const KEY = 'estimateVsActual.tasks.v1';
+const $ = id => document.getElementById(id);
+const esc = s => (''+s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+let tasks = load();
+
+function load() {
+  try {
+    const t = JSON.parse(localStorage.getItem(KEY));
+    if (Array.isArray(t)) return t;
+  } catch {}
+  return [];
+}
+function save() { localStorage.setItem(KEY, JSON.stringify(tasks)); }
+
+function toMinutes(value, unit) {
+  const n = parseFloat(value) || 0;
+  return unit === 'hr' ? n * 60 : n;
+}
+function fmtMinutes(mins) {
+  mins = Math.round(mins);
+  if (mins < 60) return mins + 'm';
+  const h = Math.floor(mins / 60), m = mins % 60;
+  return m === 0 ? h + 'h' : h + 'h ' + m + 'm';
+}
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+
+// ---------- add task ----------
+$('addBtn').onclick = addTask;
+$('name').addEventListener('keydown', e => { if (e.key === 'Enter') addTask(); });
+$('estValue').addEventListener('keydown', e => { if (e.key === 'Enter') addTask(); });
+
+function addTask() {
+  const name = $('name').value.trim();
+  const estMinutes = toMinutes($('estValue').value, $('estUnit').value);
+  const category = $('category').value.trim();
+  if (!name || estMinutes <= 0) {
+    alert('Give the task a name and an estimate greater than 0.');
+    return;
+  }
+  tasks.push({
+    id: uid(), name, category, estMinutes,
+    actualMinutes: null, createdAt: Date.now(), completedAt: null,
+  });
+  $('name').value = ''; $('estValue').value = ''; $('category').value = '';
+  save(); renderAll();
+}
+
+// ---------- complete task ----------
+function completeTask(id) {
+  const t = tasks.find(x => x.id === id);
+  if (!t) return;
+  const unit = document.getElementById('unit-' + id).value;
+  const val = document.getElementById('actual-' + id).value;
+  const mins = toMinutes(val, unit);
+  if (!val || mins <= 0) { alert('Enter the actual time spent first.'); return; }
+  t.actualMinutes = mins;
+  t.completedAt = Date.now();
+  save(); renderAll();
+}
+
+function deleteTask(id) {
+  tasks = tasks.filter(t => t.id !== id);
+  save(); renderAll();
+}
+
+// ---------- variance ----------
+function variancePct(t) {
+  return ((t.actualMinutes - t.estMinutes) / t.estMinutes) * 100;
+}
+function varianceClass(pct) {
+  if (pct > 15) return 'v-over';
+  if (pct < -15) return 'v-under';
+  return 'v-good';
+}
+function varianceLabel(t) {
+  const pct = variancePct(t);
+  const diff = t.actualMinutes - t.estMinutes;
+  const sign = diff >= 0 ? '+' : '−';
+  return `${pct >= 0 ? '+' : ''}${pct.toFixed(0)}% (${sign}${fmtMinutes(Math.abs(diff))})`;
+}
+
+// ---------- render: active list ----------
+function renderActive() {
+  const active = tasks.filter(t => t.completedAt === null);
+  const holder = $('activeList');
+  if (active.length === 0) {
+    holder.innerHTML = '<div class="empty">No active tasks. Add one above to get started.</div>';
+    return;
+  }
+  holder.innerHTML = active.map(t => `
+    <div class="task-row">
+      <div class="task-main">
+        <span class="task-name">${esc(t.name)}</span>
+        ${t.category ? `<span class="tag">${esc(t.category)}</span>` : ''}
+        <div class="task-est">Estimated ${fmtMinutes(t.estMinutes)}</div>
+      </div>
+      <div class="complete-inline">
+        <input type="number" min="0" step="1" placeholder="actual" id="actual-${t.id}">
+        <select id="unit-${t.id}">
+          <option value="min">min</option>
+          <option value="hr">hr</option>
+        </select>
+        <button class="btn-complete" data-complete="${t.id}">Mark complete</button>
+        <button class="btn-danger" data-delete="${t.id}" title="Delete">✕</button>
+      </div>
+    </div>
+  `).join('');
+  holder.querySelectorAll('[data-complete]').forEach(b => b.onclick = () => completeTask(b.dataset.complete));
+  holder.querySelectorAll('[data-delete]').forEach(b => b.onclick = () => deleteTask(b.dataset.delete));
+}
+
+// ---------- render: category filter ----------
+function renderCatFilter() {
+  const cats = [...new Set(tasks.map(t => t.category).filter(Boolean))].sort();
+  const sel = $('catFilter');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">All categories</option>' +
+    cats.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  sel.value = cats.includes(current) ? current : '';
+
+  $('catList').innerHTML = cats.map(c => `<option value="${esc(c)}">`).join('');
+}
+
+// ---------- render: completed table ----------
+function renderCompleted() {
+  const filter = $('catFilter').value;
+  let completed = tasks.filter(t => t.completedAt !== null);
+  if (filter) completed = completed.filter(t => t.category === filter);
+  completed.sort((a, b) => b.completedAt - a.completedAt);
+
+  $('completedEmpty').style.display = completed.length === 0 ? 'block' : 'none';
+  $('completedBody').innerHTML = completed.map(t => `
+    <tr>
+      <td>${esc(t.name)}</td>
+      <td>${t.category ? esc(t.category) : '<span style="color:#64748b;">—</span>'}</td>
+      <td class="num">${fmtMinutes(t.estMinutes)}</td>
+      <td class="num">${fmtMinutes(t.actualMinutes)}</td>
+      <td class="num variance ${varianceClass(variancePct(t))}">${varianceLabel(t)}</td>
+      <td><button class="btn-danger" data-delete="${t.id}" title="Delete">✕</button></td>
+    </tr>
+  `).join('');
+  $('completedBody').querySelectorAll('[data-delete]').forEach(b => b.onclick = () => deleteTask(b.dataset.delete));
+}
+
+// ---------- render: stats ----------
+function renderStats() {
+  const completed = tasks.filter(t => t.completedAt !== null).sort((a, b) => a.completedAt - b.completedAt);
+  const n = completed.length;
+  const holder = $('stats');
+
+  if (n === 0) {
+    holder.innerHTML = `
+      <div class="stat"><div class="val">0</div><div class="lbl">Tasks completed</div></div>
+      <div class="stat"><div class="val">—</div><div class="lbl">Avg accuracy</div></div>
+      <div class="stat"><div class="val">—</div><div class="lbl">Trend</div></div>
+      <div class="stat"><div class="val">${tasks.length}</div><div class="lbl">Active tasks</div></div>
+    `;
+    return;
+  }
+
+  const ratios = completed.map(t => t.actualMinutes / t.estMinutes);
+  const avgRatio = ratios.reduce((a, b) => a + b, 0) / n;
+  const avgPct = (avgRatio - 1) * 100;
+
+  let trendHtml = '<span class="trend-flat">Not enough data</span>';
+  if (n >= 4) {
+    const half = Math.floor(n / 2);
+    const firstHalf = ratios.slice(0, half);
+    const secondHalf = ratios.slice(n - half);
+    const devFirst = firstHalf.reduce((a, r) => a + Math.abs(r - 1), 0) / firstHalf.length;
+    const devSecond = secondHalf.reduce((a, r) => a + Math.abs(r - 1), 0) / secondHalf.length;
+    const delta = devFirst - devSecond; // positive = improving (less deviation now)
+    if (Math.abs(delta) < 0.03) {
+      trendHtml = '<span class="trend-flat">→ Steady</span>';
+    } else if (delta > 0) {
+      trendHtml = '<span class="trend-down">↓ Improving</span>';
+    } else {
+      trendHtml = '<span class="trend-up">↑ Getting worse</span>';
+    }
+  }
+
+  holder.innerHTML = `
+    <div class="stat"><div class="val">${n}</div><div class="lbl">Tasks completed</div></div>
+    <div class="stat"><div class="val">${avgPct >= 0 ? '+' : ''}${avgPct.toFixed(0)}%</div><div class="lbl">Avg variance (actual vs est.)</div></div>
+    <div class="stat"><div class="val">${trendHtml}</div><div class="lbl">Last-half vs first-half accuracy</div></div>
+    <div class="stat"><div class="val">${tasks.filter(t => t.completedAt === null).length}</div><div class="lbl">Active tasks</div></div>
+  `;
+}
+
+// ---------- render: SVG trend chart ----------
+function renderChart() {
+  const filter = $('catFilter').value;
+  let completed = tasks.filter(t => t.completedAt !== null);
+  if (filter) completed = completed.filter(t => t.category === filter);
+  completed.sort((a, b) => a.completedAt - b.completedAt);
+  const N = 20;
+  const points = completed.slice(-N);
+  const holder = $('chartHolder');
+
+  if (points.length < 2) {
+    holder.innerHTML = '<div class="empty">Complete at least 2 tasks to see the trend chart.</div>';
+    return;
+  }
+
+  const ratios = points.map(t => t.actualMinutes / t.estMinutes);
+  const w = 820, h = 260, padL = 46, padR = 20, padT = 18, padB = 34;
+  const plotW = w - padL - padR, plotH = h - padT - padB;
+
+  const maxR = Math.max(2, ...ratios) * 1.1;
+  const minR = 0;
+  const yFor = r => padT + plotH - ((r - minR) / (maxR - minR)) * plotH;
+  const xFor = i => points.length === 1 ? padL + plotW / 2 : padL + (i / (points.length - 1)) * plotW;
+
+  // gridlines at y = 0, 0.5, 1, 1.5, 2 (ratio) scaled to maxR
+  const gridVals = [];
+  for (let v = 0; v <= maxR; v += 0.5) gridVals.push(Math.round(v * 100) / 100);
+
+  const gridLines = gridVals.map(v => `
+    <line x1="${padL}" y1="${yFor(v)}" x2="${w - padR}" y2="${yFor(v)}" stroke="#273449" stroke-width="1"/>
+    <text x="${padL - 8}" y="${yFor(v) + 4}" text-anchor="end" font-size="11" fill="#64748b">${v.toFixed(1)}×</text>
+  `).join('');
+
+  const refY = yFor(1);
+  const refLine = `<line x1="${padL}" y1="${refY}" x2="${w - padR}" y2="${refY}" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5,4"/>
+    <text x="${w - padR}" y="${refY - 6}" text-anchor="end" font-size="11" fill="#94a3b8">on target (1.0×)</text>`;
+
+  const pathD = points.map((t, i) => `${i === 0 ? 'M' : 'L'} ${xFor(i).toFixed(1)} ${yFor(ratios[i]).toFixed(1)}`).join(' ');
+
+  const colorFor = r => (r > 1.15 ? '#f87171' : r < 0.85 ? '#60a5fa' : '#4ade80');
+
+  const dots = points.map((t, i) => {
+    const cx = xFor(i), cy = yFor(ratios[i]);
+    const title = `${esc(t.name)}: est ${fmtMinutes(t.estMinutes)}, actual ${fmtMinutes(t.actualMinutes)} (${ratios[i].toFixed(2)}×)`;
+    return `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="4.5" fill="${colorFor(ratios[i])}" stroke="#1e293b" stroke-width="1.5"><title>${title}</title></circle>`;
+  }).join('');
+
+  const xLabels = points.map((t, i) => {
+    if (points.length > 10 && i % Math.ceil(points.length / 10) !== 0 && i !== points.length - 1) return '';
+    return `<text x="${xFor(i).toFixed(1)}" y="${h - 10}" text-anchor="middle" font-size="10" fill="#64748b">${i + 1}</text>`;
+  }).join('');
+
+  holder.innerHTML = `
+    <svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto; display:block;" preserveAspectRatio="xMidYMid meet">
+      ${gridLines}
+      ${refLine}
+      <path d="${pathD}" fill="none" stroke="#818cf8" stroke-width="2"/>
+      ${dots}
+      ${xLabels}
+      <text x="${padL + plotW / 2}" y="${h - 0}" text-anchor="middle" font-size="10" fill="#475569">completed task # (chronological, most recent ${points.length})</text>
+    </svg>
+  `;
+}
+
+function renderAll() {
+  renderCatFilter();
+  renderActive();
+  renderCompleted();
+  renderStats();
+  renderChart();
+}
+
+$('catFilter').addEventListener('change', () => { renderCompleted(); renderChart(); });
+
+renderAll();
+</script>
+</body>
+</html>
