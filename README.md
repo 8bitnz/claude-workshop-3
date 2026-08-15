@@ -38,7 +38,7 @@ prompt to the next. The original prompt specs are kept alongside the code:
 
 ## Example apps (`example_apps/`)
 
-Each folder has three iterations: the initial build plus two follow-up prompts.
+Apps 01–10 each have three iterations: the initial build plus two follow-up prompts.
 
 | # | App | Format | Grows from → to |
 | --- | --- | --- | --- |
@@ -52,6 +52,16 @@ Each folder has three iterations: the initial build plus two follow-up prompts.
 | 08 | Timesheet → Invoice | Python (CLI) | HTML invoice → expenses section → tax + companion CSV |
 | 09 | Decision Matrix | HTML | weighted table → bar chart → save/load named matrices |
 | 10 | Automation Effort Calculator | HTML | budget sliders → $/people ROI → ranked list + scatter plot |
+
+Apps 11–15 are generalized from real apps workshop attendees built during the session, kept to a single build iteration.
+
+| # | App | Format | What it does |
+| --- | --- | --- | --- |
+| 11 | Estimate vs Actual Tracker | HTML | logs task estimates vs. actual time, with variance and an SVG accuracy-trend chart |
+| 12 | Maintenance Schedule Tracker | HTML | tracks recurring asset maintenance due dates, logs completed work, exports history to accounting-ready CSV |
+| 13 | Image Batch Reformatter | HTML | client-side batch resize/crop/convert of images to preset web dimensions and formats |
+| 14 | Lending Rules Checker | HTML | evaluates an applicant against configurable, saveable lending eligibility rule sets |
+| 15 | Course Publishing Checklist | Python (CLI) | validates course JSON files against a publishing-readiness checklist, CI-style exit code |
 
 ## Example games (`examples_games/`)
 
@@ -100,6 +110,12 @@ python3 example_apps/06_downloads_declutterer/iteration_3/declutter.py --help
 
 ```bash
 python3 example_apps/05_focus_timer/iteration_3/focus_timer.py
+```
+
+**Course Publishing Checklist** (15) — stdlib Python, run against its bundled example course data:
+
+```bash
+python3 example_apps/15_course_publish_checklist/iteration_1/check_courses.py --path example_apps/15_course_publish_checklist/iteration_1/courses
 ```
 
 **Spec-driven examples' tests** — stdlib Python and Node, no runner needed:

@@ -1,0 +1,13 @@
+{
+  "title": "Creative Writing 101",
+  "has_syllabus": true,
+  "modules": [
+    {"title": "Short Fiction", "has_content": true, "has_learning_objectives": true},
+    {"title": "Poetry", "has_content": true, "has_learning_objectives": true}
+  ],
+  "assessment_weights": {
+    "Workshop Participation": 20,
+    "Portfolio": 50,
+    "Final Story": 30
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "title": "Organic Chemistry",
+  "has_syllabus": false,
+  "modules": [
+    {"title": "Week 1: Bonding and Structure", "has_content": true, "has_learning_objectives": true},
+    {"title": "Week 2: Reaction Mechanisms", "has_content": false, "has_learning_objectives": true},
+    {"title": "Week 3: Spectroscopy", "has_content": true, "has_learning_objectives": false}
+  ],
+  "assessment_weights": {
+    "Lab Reports": 25,
+    "Midterm Exam": 30,
+    "Final Exam": 35
+  }
+}
