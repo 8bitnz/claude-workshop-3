@@ -1,6 +1,6 @@
-# Claude Code Workshop: 10 Single-Prompt App Ideas
+# Claude Code Workshop: 15 Single-Prompt App Ideas
 
-Each idea below is a relatable workflow problem, scoped so Claude Code can build a working v1 from **one prompt in under 5 minutes**. No API keys, no paid dependencies — Python uses only the standard library; HTML/JS is a single self-contained file. Each has two follow-up prompts for live iteration.
+Each idea below is a relatable workflow problem, scoped so Claude Code can build a working v1 from **one prompt in under 5 minutes**. No API keys, no paid dependencies — Python uses only the standard library; HTML/JS is a single self-contained file. Ideas 1–10 have two follow-up prompts for live iteration; ideas 11–15 are generalized from apps workshop attendees actually built, and are kept to the single build prompt.
 
 ---
 
@@ -156,7 +156,53 @@ Problem it solves: Deciding whether a repetitive task is actually worth automati
 >Improve the whole tool: add a saved list of past calculations (name each one, e.g. "Weekly report formatting") stored in localStorage so multiple tasks can be compared side by side in a ranked table sorted by ROI. Add a simple visual (bar or scatter, plain SVG/CSS, no libraries) plotting all saved tasks by time-cost vs. recommended automation budget, so the best automation candidates are obvious at a glance. Polish the styling and make the result panel feel like a clear recommendation rather than just raw numbers.
 ---
 
+## 11. Estimate vs Actual Tracker
+**Problem it solves:** People routinely misjudge how long tasks will take; logging estimates against actuals turns that gut feeling into visible data on whether their estimation is improving or getting worse over time.
+**Format:** HTML/JS (single file)
+
+**Prompt 1 — Build:**
+> Build a single-file HTML/JS app called "Estimate vs Actual Tracker." Let the user add a task with a name, an estimated duration (a number plus a minutes/hours unit selector), and an optional category/tag. Show active (not-yet-completed) tasks in a list, each with an inline field to record actual time spent (value + unit) and a "Mark complete" button. Once completed, move the task into a "Completed tasks" table showing task name, category, estimated time, actual time, and the variance (both as a percentage and an absolute time difference), color-coded green/red/blue depending on whether the task ran on-target, over, or under estimate. Add a category filter dropdown that filters the completed table. At the top, show summary stats: number of tasks completed, average variance percentage, and a simple "Improving / Getting worse / Steady" trend indicator (comparing estimation accuracy in the second half of completed tasks vs. the first half). Below that, add a trend chart built with plain inline SVG (no chart libraries) plotting the actual/estimated ratio for the last 20 completed tasks in chronological order, as a connected line with dots colored by accuracy, plus a dashed reference line at 1.0x for "on target." Persist everything in localStorage. Style it as a clean dark-themed single page (dark slate background, rounded cards, system-ui font), self-contained in one HTML file with no external libraries or CDNs.
+
+---
+
+## 12. Maintenance Schedule Tracker
+**Problem it solves:** Recurring equipment maintenance gets missed or tracked in scattered spreadsheets, and the resulting costs are painful to hand off to accounting/invoicing software in a clean, importable format.
+**Format:** HTML/JS (single file)
+
+**Prompt 1 — Build:**
+> Build a single-file HTML/JS app called "Maintenance Schedule Tracker." Let the user add equipment/assets with a name, a maintenance interval (a number plus a unit dropdown: days/weeks/months), and a last-serviced date. Automatically compute each asset's next-due date from the interval and last-serviced date, and show a dashboard of all assets sorted by urgency, color-coded and badged as Overdue (red), Due Soon within 7 days (amber), or On Track (green), with summary counts at the top. Each asset should have a "Log Maintenance" action that opens an inline form to enter a completion date, cost, and notes; saving it updates the asset's last-serviced date (recalculating next-due) and appends a record to a maintenance history log. Below the dashboard, show a table of the full maintenance history log (date, description, amount, reference) and an "Export CSV" button that downloads it in a simple Date/Description/Amount/Reference format suitable for importing into accounting or invoicing software. Persist everything in localStorage. Dark-themed styling (dark slate background, rounded card, system-ui font), no external libraries — plain HTML/CSS/JS in one file.
+
+---
+
+## 13. Image Batch Reformatter
+**Problem it solves:** Publishing a batch of images to a content site means manually resizing/cropping/re-exporting each one to consistent dimensions and format — tedious and error-prone by hand.
+**Format:** HTML/JS (single file)
+
+**Prompt 1 — Build:**
+> Build a single-file HTML/JS app called "Image Batch Reformatter." Let the user select or drag-and-drop multiple image files (no upload, everything happens client-side via the Canvas API). Provide an output preset dropdown (e.g. "Thumbnail 400x300," "Square 800x800," "Banner 1200x400," "Social 1200x630," plus a "Custom" option with width/height number inputs), a fit-mode toggle between Cover (crop to fill) and Contain (fit inside with a background fill color the user can pick), an output format dropdown (JPEG/PNG/WebP), and a quality slider that applies to JPEG/WebP. On clicking "Reformat images," process each file through an offscreen canvas at the target size/fit/format and render a preview grid of the results showing filename, original dimensions vs. new dimensions, and original file size vs. new file size (highlight whether it got smaller or larger). Give each processed image its own Download button (canvas.toBlob + object URL, no zipping needed). Style it as a clean dark-themed single page — no external libraries, no server, no build step.
+
+---
+
+## 14. Lending Rules Checker
+**Problem it solves:** Turning a lender's or product's raw eligibility criteria (DTI limits, minimum deposit, credit score floor, LVR cap) into an instant pass/fail check against a specific applicant's numbers.
+**Format:** HTML/JS (single file)
+
+**Prompt 1 — Build:**
+> Build a single-file HTML/JS app called "Lending Rules Checker." Let the user define a set of named lending eligibility rules, each with a label (e.g. "Maximum debt-to-income ratio," "Minimum deposit %," "Minimum credit score," "Maximum loan-to-value ratio"), a metric it applies to, a comparison type (min/max/equals), and a threshold value. Support saving multiple named rule sets (e.g. "Lender A — Standard," "Lender B — Low Deposit") in localStorage, selectable from a dropdown, with the ability to create, duplicate, rename, and delete rule sets. Below that, an applicant details form capturing annual income, total monthly debt payments, property value, deposit amount, and credit score (loan amount is implied as property value minus deposit). On clicking "Evaluate eligibility," compute each rule's underlying metric from the applicant's figures (debt-to-income ratio, deposit percentage, loan-to-value ratio, credit score, etc.), show a clear pass/fail row per rule with the applicant's actual value vs. the required threshold, and display an overall verdict at the top: "Eligible" or "Not eligible — N rules failed" listing which ones. Keep it a generic lending-rules tool, not tied to any specific bank. Dark-themed styling (dark slate background, rounded card, system-ui font), no external libraries, everything persisted to localStorage.
+
+---
+
+## 15. Course Publishing Checklist
+**Problem it solves:** Course content sits in a CMS with no reliable check that every course is actually publish-ready before it goes live to students.
+**Format:** Python (stdlib only, CLI)
+
+**Prompt 1 — Build:**
+> Build a Python CLI script called check_courses.py using only the standard library. It reads a folder of course definition files (default: ./courses, overridable with --path), one JSON file per course, each with fields: title, modules (a list, each with title, has_content bool, has_learning_objectives bool), has_syllabus bool, and assessment_weights (a dict of assessment name to percentage). For each course, check it against a publishing checklist: has a syllabus, has at least one module, every module has content, every module has learning objectives, and assessment weights sum to exactly 100. Print a per-course PASS/FAIL report to stdout, listing the specific issues for any FAIL (e.g. "Module 'Week 3' missing learning objectives"), then a final summary line like "3/5 courses ready to publish." Exit with a non-zero exit code if any course fails, so it can be used in a CI-style workflow.
+
+---
+
 ### Facilitator notes
 - Have participants pick one idea, paste Prompt 1 into Claude Code, and time how long it takes to get a working app.
 - Iteration prompts are designed to be pasted one at a time, in order, after reviewing what Claude Code built — they compound rather than replace.
 - All specs avoid API keys and external paid services so they run offline and work in any workshop network conditions.
+- Apps 11–15 are generalized from real apps built by workshop attendees, kept to a single build iteration (no follow-up prompts) rather than three.
